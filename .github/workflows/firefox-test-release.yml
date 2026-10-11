@@ -2,7 +2,7 @@ name: Package Firefox test release
 on:
   push:
     branches: [prototype/firefox-capture]
-    paths: [.github/workflows/firefox-test-release.yml]
+    paths: [.github/workflows/firefox-test-release.yml, firefox-prototype/version.js]
   workflow_dispatch:
 permissions:
   contents: write
@@ -18,17 +18,30 @@ jobs:
       - name: Test capture lifecycle
         run: |
           node --test
-          node --check firefox-prototype/capture.js
-          node --check firefox-prototype/background.js
+          for f in firefox-prototype/*.js; do node --check "$f"; done
+      - name: Read version
+        id: version
+        run: |
+          version=$(sed -nE "s/^export const CURRENT_VERSION = '([0-9A-Za-z.-]+)';$/\1/p" firefox-prototype/version.js)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "Release v$version already exists; bump CURRENT_VERSION in firefox-prototype/version.js." >&2
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Package extension and instructions
         run: |
           mkdir -p dist
+          export VERSION="${{ steps.version.outputs.version }}"
           python3 - <<'PY'
           from pathlib import Path
           import zipfile, hashlib, json
           source = Path("firefox-prototype")
           json.loads((source / "manifest.json").read_text())
-          target = Path("dist/Tohyee-TV-Firefox-Capture-0.1.0-alpha.1.zip")
+          import os
+          target = Path("dist/Tohyee-TV-Firefox-Capture-" + os.environ["VERSION"] + ".zip")
           with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
               for path in sorted(source.iterdir()):
                   if path.is_file():
@@ -38,18 +51,18 @@ jobs:
               assert "manifest.json" in archive.namelist()
           Path("dist/SHA256SUMS.txt").write_text(hashlib.sha256(target.read_bytes()).hexdigest() + "  " + target.name + "\n")
           PY
-          cat > release-notes.md <<'NOTES'
-          First Firefox capture test build. This is a local preview extension, not yet a Windows installer or Plex broadcaster.
+          cat > release-notes.md <<NOTES
+          Firefox capture test build. This is a local preview extension, not yet a Windows installer or Plex broadcaster.
 
           ### Install on Windows
-          1. Download **Tohyee-TV-Firefox-Capture-0.1.0-alpha.1.zip** under Assets and extract it.
-          2. In Firefox, open `about:debugging#/runtime/this-firefox`.
+          1. Download **Tohyee-TV-Firefox-Capture-${{ steps.version.outputs.version }}.zip** under Assets and extract it.
+          2. In Firefox, open \`about:debugging#/runtime/this-firefox\`.
           3. Click **Load Temporary Add-on** and select **manifest.json** in the extracted folder.
           4. Open **Tohyee TV Capture Check** from Firefox's extensions menu.
           5. Open your source in a separate browser window, click **Choose source & start**, and select that window.
           6. Check the actual moving picture and the audio status. Click **Stop capture** when finished.
 
-          The extension includes a Spitz icon, LIVE local-preview status, audio-track detection and capture cleanup. It does not record or transmit media. Firefox may return video only; protected video may be unavailable. Temporary installation lasts until Firefox restarts.
+          The extension includes a Spitz icon, LIVE local-preview status, audio-track detection, a black-picture warning, capture cleanup and a GitHub update check. It does not record or transmit media; the update check only downloads public release information. Firefox may return video only; protected video may be unavailable. Temporary installation lasts until Firefox restarts.
 
           Automated lifecycle and syntax checks run before packaging. Actual Windows/Firefox capture compatibility still needs manual testing. Read the included README for details.
           NOTES
@@ -57,4 +70,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.1.0-alpha.1 dist/Tohyee-TV-Firefox-Capture-0.1.0-alpha.1.zip dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Tohyee TV 0.1.0-alpha.1 — Firefox capture test" --notes-file release-notes.md --prerelease
+          v="${{ steps.version.outputs.version }}"
+          gh release create "v$v" "dist/Tohyee-TV-Firefox-Capture-$v.zip" dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Tohyee TV $v — Firefox capture test" --notes-file release-notes.md --prerelease

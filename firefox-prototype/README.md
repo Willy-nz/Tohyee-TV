@@ -1,6 +1,11 @@
-# Firefox capture check — 0.1.0
+# Firefox capture check — 0.1.0-alpha.2
 
 A local preview prototype, **not yet the Windows app or a Plex broadcaster**. It uses Firefox's normal `getDisplayMedia()` picker. It does not extract media URLs, access page contents, bypass protection, record, or send media anywhere.
+
+## Updates
+When the control tab opens, it asks GitHub's public Releases API whether a newer test build exists and shows a banner with a link if so. Use **Check for updates now** at the bottom of the page to check manually. Only public release information is downloaded; no account details, capture data or page contents are sent. Firefox can't replace a temporary add-on automatically: download the new zip, remove the old add-on in `about:debugging`, and load the new `manifest.json`.
+
+To publish a new build, bump `CURRENT_VERSION` in `version.js` (and the last number of `version` in `manifest.json`) and push to this branch.
 
 ## Run on Windows
 1. Download this branch from GitHub using **Code → Download ZIP**, and extract it.
@@ -18,10 +23,10 @@ Temporary add-ons disappear when Firefox restarts. No developer tools, Node or b
 ## Important limitations
 - Firefox does not expose Chrome's `tabCapture` extension API. This test offers Firefox's own window/screen choices; it does not promise isolated tab capture.
 - Requesting `audio: true` does not guarantee audio. Firefox may return video only. A future Windows companion may need WASAPI loopback audio capture, with synchronisation tested separately.
-- Protected video may be black or unavailable. Black video alone does not identify the cause. This prototype does not change DRM settings or work around capture protection.
+- Protected video may be black or unavailable. Black video alone does not identify the cause. If the picture stays completely black for a few seconds, the page shows a warning with things to try (unminimise the window, start playback, reload the source). This prototype does not change DRM settings or work around capture protection.
 - The source must remain open. The control tab must also remain open to own the capture session.
 - Local capture is not broadcasting: no Plex, FFmpeg, server, startup setting, background refresh, media export or network receiver is implemented.
-- There are no host permissions, content scripts, microphone requests, network requests or persistent settings. The browser itself may perform its normal background networking.
+- There are no host permissions, content scripts, microphone requests or persistent settings. The only network request the extension makes is the GitHub update check. The browser itself may perform its normal background networking.
 
 ## Report the result
 Record Firefox and Windows versions, source type (window/screen), visible moving picture yes/no, audio track present yes/no, audible sound yes/no, and behaviour when backgrounded/minimised. Do not include account details, private URLs or screenshots containing private information in a public issue.
