@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tohyee TV · Capture check</title><link rel="stylesheet" href="capture.css"></head>
+<body><main>
+<header><img src="spitz.svg" width="52" height="52" alt="Japanese Spitz mascot"><div><strong>Tohyee TV</strong><span>Firefox capture prototype</span></div><p id="status" role="status">Not capturing</p></header>
+<h1>Check your picture first.</h1><p class="intro">Choose a window or screen in Firefox’s sharing picker. This preview stays on your computer. Nothing is sent to Plex or recorded.</p>
+<section class="card"><div class="controls"><button id="start">Choose source &amp; start</button><button id="stop" class="secondary" disabled>Stop capture</button><label><input id="audio" type="checkbox" checked> Request source audio if available</label></div>
+<p id="message" role="status">Keep this control tab open. Choose the source browser window, not this preview.</p>
+<video id="preview" autoplay muted playsinline aria-label="Live capture preview"></video>
+<dl><div><dt>Video</dt><dd id="videoInfo">Not started</dd></div><div><dt>Audio</dt><dd id="audioInfo">Not started</dd></div></dl>
+<button id="listen" class="secondary" disabled>Listen to captured audio</button><p class="hint">Preview sound is muted initially to prevent feedback. Use headphones when checking audio.</p></section>
+<section class="notes"><h2>What this test tells us</h2><p>Check that the actual moving picture appears, not just browser controls. A black picture can mean protected video or a capture problem; it is not proof of the cause.</p><p>Firefox may offer only a window or screen and may return no audio. This does not capture a closed tab. Background or minimised playback must be tested on your computer.</p><p>Closing this control tab stops capture. This prototype has no automatic refresh, startup, recording or Plex connection.</p></section>
+</main><script type="module" src="capture.js"></script></body></html>
