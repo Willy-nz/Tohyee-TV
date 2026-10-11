@@ -1,3 +1,4 @@
+import {channelConfigs} from './config.js';
 // A rolling XMLTV guide for the single channel, so Plex has something to show
 // in its programme guide. One-hour blocks covering the past 2 hours and the
 // next 48 hours, aligned to the hour, in the computer's local time zone.
@@ -20,7 +21,7 @@ export function channelId(config) {
   return `tohyee.${config.channelNumber}`;
 }
 
-export function xmltv(config, now = new Date(), hoursBack = 2, hoursAhead = 48) {
+function singleGuide(config, now, hoursBack, hoursAhead) {
   const start = new Date(now);
   start.setMinutes(0, 0, 0);
   start.setHours(start.getHours() - hoursBack);
@@ -46,4 +47,9 @@ export function xmltv(config, now = new Date(), hoursBack = 2, hoursAhead = 48) 
 ${programmes.join('\n')}
 </tv>
 `;
+}
+
+export function xmltv(config, now = new Date(), hoursBack = 2, hoursAhead = 48) {
+  const sections = channelConfigs(config).map(c=>singleGuide(c,now,hoursBack,hoursAhead).split('<tv generator-info-name="Tohyee TV">')[1].split('</tv>')[0]);
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE tv SYSTEM "xmltv.dtd">\n<tv generator-info-name="Tohyee TV">' + sections.map(s=>s.slice(0,s.indexOf('  <programme'))).join('') + sections.map(s=>s.slice(s.indexOf('  <programme'))).join('') + '</tv>\n';
 }

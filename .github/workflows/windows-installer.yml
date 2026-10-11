@@ -46,6 +46,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
           node scripts/smoke-media.mjs vendor/ffmpeg/ffmpeg.exe
           if ($LASTEXITCODE -ne 0) { throw 'Media smoke tests failed' }
+          node scripts/smoke-channels.mjs vendor/ffmpeg/ffmpeg.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Multi-channel smoke tests failed' }
       - name: Install desktop build dependencies
         working-directory: desktop
         run: npm ci

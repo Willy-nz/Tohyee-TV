@@ -13,6 +13,12 @@ Automatic mode copies compatible H.264 video and converts audio to AAC. Other vi
 
 The test installer is unsigned. Actual Chrome/Plex playback and Windows startup behaviour still need manual testing. Encoder licences and matching sources are included and accessible from Settings.
 
+## Multiple channels
+
+Use **Channels** in the Windows app to add up to eight named channels. Save, then select the matching channel in the Chrome extension on each source tab. Each channel needs a different tab and an explicit Broadcast click. Rescan channels and refresh/map the XMLTV guide in Plex after changing the lineup.
+
+When upgrading, reload the extension at `chrome://extensions` and confirm version 0.5.0. If you loaded an older extracted extension folder, use the installed app’s extension folder instead. Saving the lineup stops broadcasts; start each tab again afterwards. Pausing a website may not release its streaming-service viewing slot.
+
 ## Development
 
 - `desktop/` — the Electron desktop app and Windows installer configuration.

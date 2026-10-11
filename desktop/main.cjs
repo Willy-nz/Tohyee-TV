@@ -9,7 +9,7 @@ const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),...runtime?.status(),problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),...runtime?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function notify(title,body){if(Notification.isSupported())new Notification({title,body,icon}).show();}
 function refreshTray(){
@@ -46,6 +46,12 @@ ipcMain.handle('action',async(event,name,value)=>{
   trusted(event);
   switch(name){
     case 'stop':runtime?.stopBroadcast();break;
+    case 'stopChannel':runtime?.stopBroadcast(String(value));break;
+    case 'channels': {
+      const {validate}=await import(pathToFileURL(path.join(resources,'tuner/src/config.js')).href);
+      const next={...config,channels:value};const errors=validate(next);if(errors.length)throw new Error(errors.join('; '));
+      fs.writeFileSync(configPath,JSON.stringify(next,null,2));config=next;await restart();break;
+    }
     case 'restart':return restart(false);
     case 'test':return restart(true);
     case 'show':show();break;

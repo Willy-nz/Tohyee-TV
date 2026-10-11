@@ -61,7 +61,7 @@ test('Broadcasting connects to the tuner on this computer and says hello', async
   const h = harness();
   const state = await arm(h);
   assert.equal(state.state, 'connecting');
-  assert.equal(h.sockets[0].url, 'ws://127.0.0.1:34500/source');
+  assert.equal(h.sockets[0].url, 'ws://127.0.0.1:34500/source/1');
   h.sockets[0].open();
   assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, pauseWhenIdle: true});
   assert.equal((await h.send('status')).state, 'ready');
@@ -207,8 +207,8 @@ test('A capture failure is reported, not left hanging', async () => {
 test('Extension manifest asks only for what it needs', () => {
   const m = JSON.parse(fs.readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
   assert.deepEqual(m.permissions.sort(), ['activeTab', 'offscreen', 'scripting', 'storage', 'tabCapture']);
-  assert.equal(m.host_permissions, undefined, 'site access is only requested per site, when needed');
-  assert.match(m.content_security_policy.extension_pages, /connect-src ws:\/\/127\.0\.0\.1:\*$/);
+  assert.deepEqual(m.host_permissions, ['http://127.0.0.1/*'], 'only local tuner access is installed; website playback permissions remain optional');
+  assert.match(m.content_security_policy.extension_pages, /connect-src ws:\/\/127\.0\.0\.1:\* http:\/\/127\.0\.0\.1:\*$/);
 });
 
 test('Desktop Stop disarms the extension and stops all tracks',async()=>{
@@ -225,3 +225,14 @@ test('Recorder failure closes transport and remains stoppable',async()=>{
  assert.equal(ws.readyState,3);assert.equal((await h.send('status')).armed,true);
  await h.send('disarm');assert.ok(h.tracks.every(t=>t.readyState==='ended'));
 });
+
+ test('Two channel captures keep independent sockets, recorders and stop controls',async()=>{
+ const h=harness();await arm(h);await h.send('arm',{channelNumber:'2',streamId:'two',tabId:8,tabTitle:'Second tab',port:34500,reloadOnWatch:false});
+ assert.equal(h.sockets.length,2);assert.equal(h.sockets[1].url,'ws://127.0.0.1:34500/source/2');
+ for(const ws of h.sockets){ws.open();ws.message({type:'start',session:1});}
+ assert.equal(h.recorders.length,2);await h.send('disarm',{channelNumber:'2'});
+ assert.equal(h.recorders[0].state,'recording');assert.equal(h.recorders[1].state,'inactive');assert.equal((await h.send('status')).armed,true);
+ });
+ test('A tab cannot be assigned to two channels simultaneously',async()=>{
+ const h=harness();await arm(h);const r=await h.send('arm',{channelNumber:'2',streamId:'two',tabId:7,port:34500});assert.match(r.error,/already assigned/);assert.equal(h.sockets.length,1);
+ });

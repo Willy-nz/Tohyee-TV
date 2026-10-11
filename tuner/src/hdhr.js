@@ -1,3 +1,4 @@
+import {channelConfigs} from './config.js';
 // The small HDHomeRun-compatible description files Plex reads when you add a
 // network tuner. Field names follow what Plex expects from HDHomeRun devices
 // (cross-checked against Threadfin, an established Plex tuner emulator).
@@ -5,7 +6,7 @@
 // `base` is "http://host:port" built from the address Plex used to reach us,
 // so every URL we hand back is one Plex already knows it can reach.
 
-export const VERSION = '0.4.0-alpha.1';
+export const VERSION = '0.5.0-alpha.1';
 
 export function discover(base, config) {
   return {
@@ -16,18 +17,18 @@ export function discover(base, config) {
     FirmwareVersion: VERSION,
     DeviceID: config.deviceId,
     DeviceAuth: 'tohyee',
-    TunerCount: 1,
+    TunerCount: channelConfigs(config).length,
     BaseURL: base,
     LineupURL: `${base}/lineup.json`
   };
 }
 
 export function lineup(base, config) {
-  return [{
+  return channelConfigs(config).map(config => ({
     GuideNumber: config.channelNumber,
     GuideName: config.channelName,
     URL: `${base}/stream/${encodeURIComponent(config.channelNumber)}`
-  }];
+  }));
 }
 
 // There is nothing to scan: the single channel always exists.

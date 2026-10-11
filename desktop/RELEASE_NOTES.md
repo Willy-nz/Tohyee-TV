@@ -1,13 +1,21 @@
-Windows x64 test installer with FFmpeg included. No separate encoder or Node download.
+Windows x64 multi-channel test installer. FFmpeg and the runtime are included.
 
-- Guided Chrome extension and Plex setup in a desktop app.
-- Spitz tray icon, optional start at Windows sign-in, visible LIVE indicator and Stop control.
-- Automatic H.264 video passthrough, AAC audio conversion, and software encoding fallback.
-- Local-only tuner by default; opt into home-network access if Plex runs on another device.
-- Capture stops when Windows locks or sleeps. App startup does not silently start Chrome capture.
+- Add up to eight named channels in the Windows app, each with its own Plex stream and guide entry.
+- Assign a different Chrome tab to each channel using the extension’s channel dropdown.
+- Each channel has its own capture, encoder and Stop control. Multiple viewers of the same channel share one output.
+- Compatible H.264 video uses passthrough; other formats use the bundled encoder.
 
-Run **Tohyee-TV-Setup-0.4.0-alpha.1.exe**. Close the old command-window tuner first. Open the installed app and follow **Connect to Plex**. Chrome still requires a one-time Load unpacked step and an explicit click to broadcast a tab.
+## Upgrade and test
 
-The bundled FFmpeg build includes GPL notices, matching source archives and build instructions under its installation directory (also accessible from Settings). Electron licence notices accompany the app.
+1. Quit the old Tohyee TV app from its tray menu, then run the installer.
+2. Open **Channels**, add names and unique numbers, and click **Save channels & restart tuner**. Your existing channel is retained when upgrading.
+3. Reload the Tohyee TV extension at `chrome://extensions` so Chrome loads version **0.5.0**. If it points to an older extracted folder, remove that old extension and load the folder opened by the new app’s **Connect to Plex** page. Chrome may ask for the new permission to read the local tuner’s channel list.
+4. Open each source tab, click the extension, choose its channel and click **Broadcast this tab to Plex**. Click **Refresh channels** if needed. Each tab can be assigned to one channel.
+5. In Plex, rescan the tuner’s channels, refresh the XMLTV guide, and map the new channels. Keep existing channel numbers to preserve mappings. The guide contains generic channel labels, not provider schedules.
+6. Try two channels at once, then stop one and check that the other keeps playing. Saving the channel list or restarting the tuner stops all captures; reconnect the tabs afterwards.
 
-This installer is unsigned: Windows may show an unknown-publisher/SmartScreen warning. Automated media and packaged-launch checks are run during the build; actual Plex/Chrome playback and Windows startup behaviour still need user testing. Protected video capture is not guaranteed. Not yet a production release.
+Processing starts when Plex watches a channel. Paused website players may still consume a provider’s viewing slot; this release does not guarantee those slots are released, or bypass service limits or protected capture. Pause in Plex does not necessarily pause the browser. Start with ordinary unprotected videos or the built-in test picture.
+
+Automated tests cover isolated captures, channel routing, guide entries, concurrent media streams and packaged Windows startup. Actual Chrome/Plex playback, minimized capture and provider behaviour still require manual testing.
+
+Unsigned test build: Windows may show an unknown-publisher/SmartScreen warning. Bundled encoder licences and matching source archives are available from Settings.

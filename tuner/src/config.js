@@ -40,6 +40,18 @@ export function validate(config) {
   if (typeof config.ffmpegPath !== 'string') problems.push('ffmpegPath must be text');
   if (config.videoMode !== undefined && !['auto','encode'].includes(config.videoMode)) problems.push('videoMode must be auto or encode');
   if (!['chrome', 'test'].includes(config.source)) problems.push('source must be "chrome" or "test"');
+  if (config.channels !== undefined) {
+    if (!Array.isArray(config.channels) || config.channels.length < 1 || config.channels.length > 8) problems.push('Configure between 1 and 8 channels');
+    else {
+      const numbers = new Set();
+      for (const c of config.channels) {
+        if (!c || typeof c.channelNumber !== 'string' || !/^\d{1,4}(\.\d{1,3})?$/.test(c.channelNumber ?? '')) { problems.push('Invalid channel number'); continue; }
+        if (numbers.has(c.channelNumber)) problems.push('Channel numbers must be unique');
+        numbers.add(c.channelNumber);
+        for (const key of ['channelName','programmeTitle']) if (typeof c[key] !== 'string' || !c[key].trim() || c[key].length > 60) problems.push(`${key} must be 1–60 characters`);
+      }
+    }
+  }
   return problems;
 }
 
@@ -64,3 +76,5 @@ export function loadConfig(path, fs = {readFileSync, writeFileSync, mkdirSync}) 
   }
   return config;
 }
+
+export function channelConfigs(config) { return (config.channels ?? [{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}]).map(c=>({...config,...c})); }
