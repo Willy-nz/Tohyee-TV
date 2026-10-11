@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Tohyee TV Chrome Capture Check",
+  "version": "0.2.0",
+  "minimum_chrome_version": "116",
+  "description": "Record a local 30-second tab capture test, including audio, to check background playback.",
+  "permissions": ["activeTab", "tabCapture", "offscreen"],
+  "action": {"default_title": "Tohyee TV capture check", "default_popup": "popup.html"},
+  "background": {"service_worker": "worker.js"},
+  "content_security_policy": {"extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'; media-src 'self' blob:"}
+}
