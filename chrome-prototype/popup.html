@@ -1,0 +1,8 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Tohyee TV</title><link rel="stylesheet" href="popup.css"></head><body>
+<header><img src="spitz.svg" width="44" height="44" alt="Japanese Spitz"><div><strong>Tohyee TV</strong><small>Chrome tab capture test</small></div></header>
+<h1>Picture. Sound. Background.</h1><p>Open this extension on the video tab you want to test. Start a 30-second local recording, then minimise Chrome.</p>
+<p id="status" role="status">Loading…</p><p id="message"></p><p id="tracks"></p>
+<button id="start">Start 30-second test</button><button id="stop" disabled>Stop early</button>
+<video id="clip" controls playsinline hidden></video><button id="clear" hidden>Delete test clip</button>
+<p class="note">Pin the extension to see its red REC badge. Closing this popup does not stop the test. Closing the captured tab or Chrome does. No video is uploaded or sent to Plex.</p><p class="note">The clip stays in memory for up to 10 minutes. Protected video may be unavailable. A black picture does not identify the cause.</p>
+<script src="popup.js"></script></body></html>

@@ -1,0 +1,61 @@
+name: Package Chrome test release
+on:
+  push:
+    branches: [prototype/chrome-capture]
+    paths: [.github/workflows/chrome-test-release.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: chrome-alpha-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test capture lifecycle
+        run: |
+          node --test
+          node --check chrome-prototype/offscreen.js
+          node --check chrome-prototype/worker.js
+          node --check chrome-prototype/popup.js
+      - name: Package extension and instructions
+        run: |
+          mkdir -p dist
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile, hashlib, json
+          source = Path("chrome-prototype")
+          json.loads((source / "manifest.json").read_text())
+          target = Path("dist/Tohyee-TV-Chrome-Capture-0.2.0-alpha.1.zip")
+          with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+              for path in sorted(source.iterdir()):
+                  if path.is_file():
+                      archive.write(path, path.name)
+          with zipfile.ZipFile(target) as archive:
+              assert archive.testzip() is None
+              assert "manifest.json" in archive.namelist()
+          Path("dist/SHA256SUMS.txt").write_text(hashlib.sha256(target.read_bytes()).hexdigest() + "  " + target.name + "\n")
+          PY
+          cat > release-notes.md <<'NOTES'
+          Chrome tab capture test with audio and a 30-second local replay. This is not yet a Plex broadcaster or Windows installer.
+
+          ### Install and test
+          1. Download **Tohyee-TV-Chrome-Capture-0.2.0-alpha.1.zip** and extract it.
+          2. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select the extracted folder containing `manifest.json`.
+          3. Pin **Tohyee TV Chrome Capture Check** from the extensions menu.
+          4. Play an ordinary video with sound. Click the extension on that tab and choose **Start 30-second test**.
+          5. Switch tabs and minimise Chrome during the test. Keep Chrome and the source tab open.
+          6. After 30 seconds, reopen the extension and play the clip to check picture and sound throughout.
+
+          Capture belongs to an offscreen document and continues independently of the popup. A REC badge indicates active recording. The clip stays locally in memory, expires after 10 minutes, and is not uploaded. Use Stop early or Delete test clip as needed.
+
+          Eight automated lifecycle tests and JavaScript syntax checks run before packaging. Actual Windows/Chrome media capture and minimised playback remain unverified until manual testing. Protected video may be unavailable. Read the included README for details.
+          NOTES
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.2.0-alpha.1 dist/Tohyee-TV-Chrome-Capture-0.2.0-alpha.1.zip dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Tohyee TV 0.2.0-alpha.1 — Chrome capture test" --notes-file release-notes.md --prerelease

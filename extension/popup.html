@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Tohyee TV</title><link rel="stylesheet" href="popup.css"></head><body>
+<header><img src="spitz.svg" width="44" height="44" alt=""><div><strong>Tohyee TV</strong><small>Broadcast a tab to Plex</small></div></header>
+<p id="status" role="status">Loading…</p>
+<p id="tab" hidden></p>
+<p id="message" aria-live="polite"></p>
+<button id="broadcast">Broadcast this tab to Plex</button>
+<button id="stop" class="secondary" hidden>Stop broadcasting</button>
+<label class="option"><input type="checkbox" id="reload"> Reload the tab when someone starts watching in Plex</label>
+<label class="option"><input type="checkbox" id="pause"> Pause the video when nobody is watching</label>
+<p class="note">Tohyee TV presses Play when someone starts watching (after reloading, if that’s on), and pauses about 5 seconds after the last person stops. Chrome will ask once for permission to do that on this site.</p>
+<details><summary>Advanced</summary><label class="option">Tuner port <input type="number" id="port" min="1" max="65535"></label><button id="save" class="secondary">Save</button></details>
+<p class="note">The Tohyee TV tuner must be running on this computer. Picture and sound are only sent while someone is watching in Plex. Closing the tab, or clicking Stop, ends the broadcast.</p>
+<script src="popup.js"></script></body></html>

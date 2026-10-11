@@ -1,0 +1,16 @@
+:root{color-scheme:dark;font-family:Segoe UI,system-ui,sans-serif;background:#191b20;color:#eee}
+body{width:360px;margin:0;padding:18px;box-sizing:border-box}
+header{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+strong{font-size:20px}small{display:block;color:#c0c4cf}
+p{font-size:13px;line-height:1.5;margin:8px 0}
+#status{background:#363b46;padding:10px 12px;border-radius:8px;font-weight:700}
+#status.live{background:#8b263b}#status.ready{background:#4d4420}#status.error{background:#6b2e1c}
+#tab{color:#ffd27a;word-break:break-word}
+button{border:0;border-radius:6px;padding:11px 14px;margin:6px 0;width:100%;background:#eab237;color:#191b20;font-weight:700;font-size:14px;cursor:pointer}
+button.secondary{background:#373b45;color:#fff;border:1px solid #777e90}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.option{display:flex;gap:8px;align-items:center;font-size:13px;margin:10px 0 4px}
+input[type=number]{width:90px;background:#24262c;color:#eee;border:1px solid #777e90;border-radius:5px;padding:5px}
+details{margin:10px 0;font-size:13px}summary{cursor:pointer;color:#c0c4cf}
+.note{color:#bfc4cf;font-size:12px}

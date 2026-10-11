@@ -1,0 +1,1 @@
+{"name":"tohyee-tv-tuner","version":"0.3.1","private":true,"type":"module","description":"Pretend HDHomeRun tuner that lets Plex play Tohyee TV","main":"src/main.js","scripts":{"start":"node src/main.js"},"engines":{"node":">=20"}}

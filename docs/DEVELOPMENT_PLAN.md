@@ -3,6 +3,14 @@
 Status: proposed implementation plan, not implemented or Plex-certified.
 Date: 11 October 2026.
 
+## Update — 11 October 2026: Chrome only
+Testing showed Firefox window capture gives no sound and stops when the source window is minimised or switched to another tab. Chrome tab capture (tested on Sky Go with a 30-second recording) kept picture and sound going while minimised. Decision: **Chrome only**.
+
+Built so far (test build 0.3.0-alpha.1, not yet tested with real Plex or real Chrome):
+- `tuner/`: Node.js tuner instead of the provisional C#/.NET choice, so it shares a language with the extension and is fully testable in CI. Provides `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/guide.xml` (rolling XMLTV) and `/stream/1` (H.264/AAC MPEG-TS from FFmpeg). One shared encoder; new viewers start at a keyframe; stops 5 s after the last viewer leaves. A test-picture mode proves the Plex path without Chrome.
+- `extension/`: MV3 Chrome extension. The user clicks Broadcast on a tab (required by Chrome); an offscreen document holds the tab capture and a WebSocket to the tuner on 127.0.0.1. The tuner tells it when Plex starts and stops watching; media is only recorded and sent while someone is watching. Optional reload-on-watch reloads the tab when watching starts (tab capture survives navigation) and presses Play on the largest video if the user granted that site's permission.
+- Not yet: installer/tray/startup, bundled FFmpeg (licence review), reconnect slate, long-session recovery beyond reload-on-watch.
+
 ## Product goal
 A friendly Windows desktop app that broadcasts a selected screen, window or supported direct video stream as a live TV channel in Plex. One installer, clear controls, guided Plex setup and no separate OBS, MediaMTX or Threadfin installation.
 
