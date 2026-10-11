@@ -34,9 +34,11 @@ export function compareVersions(a, b) {
 }
 
 // From a GitHub "list releases" response, returns the newest release that is
-// newer than `current`, or null. Drafts, unparseable tags and links that
-// don't point at this repository's GitHub pages are ignored.
-export function findNewerRelease(releases, current, repo) {
+// newer than `current` and contains a download for this build (a .zip asset
+// whose name starts with `assetPrefix`), or null. Drafts, unparseable tags,
+// other builds' releases and links that don't point at this repository's
+// GitHub pages are ignored.
+export function findNewerRelease(releases, current, repo, assetPrefix) {
   if (!Array.isArray(releases)) return null;
   const pagePrefix = `https://github.com/${repo}/releases/`.toLowerCase();
   let best = null;
@@ -45,6 +47,8 @@ export function findNewerRelease(releases, current, repo) {
     const version = parseVersion(release.tag_name);
     const url = typeof release.html_url === 'string' ? release.html_url : '';
     if (!version || !url.toLowerCase().startsWith(pagePrefix)) continue;
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    if (!assets.some(a => typeof a?.name === 'string' && a.name.startsWith(assetPrefix) && a.name.endsWith('.zip'))) continue;
     if (compareVersions(version, current) <= 0) continue;
     if (!best || compareVersions(version, best.parsed) > 0) {
       best = {parsed: version, tag: release.tag_name, name: release.name || release.tag_name, url};
@@ -57,7 +61,7 @@ export function findNewerRelease(releases, current, repo) {
 
 // Fetches releases and returns {status: 'update', release} | {status: 'current'}
 // | {status: 'error', message}. `fetchFn` is injectable for tests.
-export async function checkForUpdate({current, repo, fetchFn = fetch, timeoutMs = 10000}) {
+export async function checkForUpdate({current, repo, assetPrefix, fetchFn = fetch, timeoutMs = 10000}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -71,7 +75,7 @@ export async function checkForUpdate({current, repo, fetchFn = fetch, timeoutMs 
       return {status: 'error', message: 'GitHub is limiting update checks right now. Try again later.'};
     }
     if (!response.ok) return {status: 'error', message: `GitHub returned an error (${response.status}).`};
-    const release = findNewerRelease(await response.json(), current, repo);
+    const release = findNewerRelease(await response.json(), current, repo, assetPrefix);
     return release ? {status: 'update', release} : {status: 'current'};
   } catch (error) {
     return {

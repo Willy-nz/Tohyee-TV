@@ -1,5 +1,5 @@
 import {CaptureSession} from './session.js';
-import {CURRENT_VERSION, REPO} from './version.js';
+import {CURRENT_VERSION, REPO, ASSET_PREFIX} from './version.js';
 import {checkForUpdate} from './updates.js';
 import {isBlackFrame, BlackFrameMonitor} from './blackframe.js';
 const el = id => document.getElementById(id);
@@ -98,7 +98,7 @@ async function runUpdateCheck(manual) {
   checking = true;
   el('checkUpdates').disabled = true;
   if (manual) { banner.hidden = false; banner.className = 'update muted'; banner.textContent = 'Checking GitHub for updates…'; }
-  const result = await checkForUpdate({current: CURRENT_VERSION, repo: REPO});
+  const result = await checkForUpdate({current: CURRENT_VERSION, repo: REPO, assetPrefix: ASSET_PREFIX});
   checking = false;
   el('checkUpdates').disabled = false;
   banner.replaceChildren();

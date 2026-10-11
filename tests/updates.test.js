@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {compareVersions, findNewerRelease, checkForUpdate} from '../firefox-prototype/updates.js';
 import {isBlackFrame, BlackFrameMonitor} from '../firefox-prototype/blackframe.js';
 const repo = 'Willy-nz/tohyee-tv';
-const rel = (tag, extra = {}) => ({tag_name: tag, name: tag, html_url: `https://github.com/${repo}/releases/tag/${tag}`, draft: false, ...extra});
+const prefix = 'Tohyee-TV-Firefox-Capture-';
+const rel = (tag, extra = {}) => ({tag_name: tag, name: tag, html_url: `https://github.com/${repo}/releases/tag/${tag}`, draft: false,
+  assets: [{name: `${prefix}${tag.slice(1)}.zip`}, {name: 'SHA256SUMS.txt'}], ...extra});
 
 test('Version ordering follows semver including prereleases', () => {
   const ordered = ['0.1.0-alpha.1', '0.1.0-alpha.2', '0.1.0-alpha.10', '0.1.0-beta.1', '0.1.0', '0.1.1', '0.2.0', '1.0.0'];
@@ -12,17 +14,17 @@ test('Version ordering follows semver including prereleases', () => {
 });
 test('Finds the newest newer release and ignores drafts, older and odd entries', () => {
   const found = findNewerRelease([rel('v0.1.0-alpha.1'), rel('v0.1.0-alpha.3'), rel('v0.2.0', {draft: true}),
-    rel('nightly'), rel('v0.1.0-alpha.4', {html_url: 'https://evil.example/x'}), rel('v0.1.0-alpha.2')], '0.1.0-alpha.2', repo);
+    rel('nightly'), rel('v0.1.0-alpha.4', {html_url: 'https://evil.example/x'}), rel('v0.1.0-alpha.2')], '0.1.0-alpha.2', repo, prefix);
   assert.equal(found.tag, 'v0.1.0-alpha.3');
 });
 test('No update when already newest', () => {
-  assert.equal(findNewerRelease([rel('v0.1.0-alpha.1'), rel('v0.1.0-alpha.2')], '0.1.0-alpha.2', repo), null);
-  assert.equal(findNewerRelease({message: 'Not Found'}, '0.1.0', repo), null);
+  assert.equal(findNewerRelease([rel('v0.1.0-alpha.1'), rel('v0.1.0-alpha.2')], '0.1.0-alpha.2', repo, prefix), null);
+  assert.equal(findNewerRelease({message: 'Not Found'}, '0.1.0', repo, prefix), null);
 });
 test('checkForUpdate reports update, current, rate limit and network failure', async () => {
   const ok = body => async () => ({ok: true, status: 200, json: async () => body});
-  assert.equal((await checkForUpdate({current: '0.1.0-alpha.2', repo, fetchFn: ok([rel('v0.1.0-alpha.3')])})).status, 'update');
-  assert.equal((await checkForUpdate({current: '0.1.0-alpha.2', repo, fetchFn: ok([])})).status, 'current');
+  assert.equal((await checkForUpdate({current: '0.1.0-alpha.2', repo, assetPrefix: prefix, fetchFn: ok([rel('v0.1.0-alpha.3')])})).status, 'update');
+  assert.equal((await checkForUpdate({current: '0.1.0-alpha.2', repo, assetPrefix: prefix, fetchFn: ok([])})).status, 'current');
   const limited = await checkForUpdate({current: '0.1.0', repo, fetchFn: async () => ({ok: false, status: 403})});
   assert.match(limited.message, /limiting/);
   const offline = await checkForUpdate({current: '0.1.0', repo, fetchFn: async () => { throw new TypeError('fail'); }});
@@ -41,4 +43,10 @@ test('Black frame detection needs several black samples in a row', () => {
   const m = new BlackFrameMonitor(3);
   assert.equal(m.add(true), false); assert.equal(m.add(true), false); assert.equal(m.add(false), false);
   m.add(true); m.add(true); assert.equal(m.add(true), true);
+});
+test('Releases for other builds (e.g. Chrome) are not offered as updates', () => {
+  const chrome = rel('v0.2.0-alpha.1', {assets: [{name: 'Tohyee-TV-Chrome-Capture-0.2.0-alpha.1.zip'}]});
+  assert.equal(findNewerRelease([chrome, rel('v0.1.0-alpha.1')], '0.1.0-alpha.2', repo, prefix), null);
+  assert.equal(findNewerRelease([chrome, rel('v0.1.0-alpha.3')], '0.1.0-alpha.2', repo, prefix).tag, 'v0.1.0-alpha.3');
+  assert.equal(findNewerRelease([rel('v0.1.0-alpha.3', {assets: []})], '0.1.0-alpha.2', repo, prefix), null);
 });

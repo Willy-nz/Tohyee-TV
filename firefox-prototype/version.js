@@ -3,3 +3,6 @@
 // bump it here when making a new test build.
 export const CURRENT_VERSION = '0.1.0-alpha.2';
 export const REPO = 'Willy-nz/tohyee-tv';
+// Only releases with a download whose name starts with this count as updates,
+// so other builds published to the same repository (e.g. Chrome) are ignored.
+export const ASSET_PREFIX = 'Tohyee-TV-Firefox-Capture-';
