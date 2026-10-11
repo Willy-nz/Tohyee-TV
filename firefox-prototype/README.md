@@ -20,6 +20,13 @@ To publish a new build, bump `CURRENT_VERSION` in `version.js` (and the last num
 
 Temporary add-ons disappear when Firefox restarts. No developer tools, Node or build step is needed to load these files. This is unsigned development software, not a permanent add-on release.
 
+## Keeping the picture running
+Tested on Windows with Firefox:
+- Put the video in **its own Firefox window** and capture that window. Window capture shows whatever the window is currently displaying, so switching that window to another tab changes what is captured.
+- **Don't minimise** the source window. Windows stops drawing minimised windows, so the picture freezes.
+- Covering the source window with other windows works, but only after turning off Firefox's hidden-window optimisation: open `about:config`, set `widget.windows.window_occlusion_tracking.enabled` to `false`, and restart Firefox. Without this, Firefox stops drawing a fully covered window and the capture pauses until it is visible again. Firefox may use slightly more power with this off; set it back to `true` to undo.
+- A second monitor is another way to keep the source visible.
+
 ## Important limitations
 - Firefox does not expose Chrome's `tabCapture` extension API. This test offers Firefox's own window/screen choices; it does not promise isolated tab capture.
 - Requesting `audio: true` does not guarantee audio. Firefox may return video only. A future Windows companion may need WASAPI loopback audio capture, with synchronisation tested separately.

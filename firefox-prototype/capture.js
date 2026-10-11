@@ -69,7 +69,7 @@ function showBlack(show) {
   const warning = el('blackWarning');
   warning.hidden = !show;
   warning.textContent = show
-    ? 'The captured picture is completely black. Try these first: make sure the source window is not minimised, start the video playing, or reload the source page and choose it again. If it stays black, the website may be protecting its video from screen capture, which Tohyee TV cannot get around.'
+    ? 'The captured picture is completely black. Try these first: check you chose the right window in the sharing picker, make sure the source window is not minimised, start the video playing, or reload the source page and choose it again. If it stays black, the website may be protecting its video from screen capture, which Tohyee TV cannot get around.'
     : '';
 }
 function watchForBlack(stream) {
