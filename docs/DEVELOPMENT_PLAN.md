@@ -148,3 +148,21 @@ Resolve in stage 1: user's target Plex TV client/server version and subscription
 - Chromium tab capture: https://developer.chrome.com/docs/extensions/reference/api/tabCapture
 - Media-element capture: https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/captureStream
 - W3C media capture draft (not a final standard): https://www.w3.org/TR/mediacapture-fromelement/
+
+## Browser-source feasibility and long-session recovery
+Before promising support for a particular streaming service, test ordinary capture compatibility on the target browser. DRM-protected streams are not supported by direct passthrough; protected capture can also be blocked. Generic desktop streaming success does not establish service compatibility.
+
+- Confirm intended Plex accounts have Plex Home Live TV access; ordinary library sharing does not grant the same access.
+- Diagnose long-session failures before choosing a refresh interval: record elapsed time, player errors and whether a manual reload and Play recover.
+- Prioritise an explicitly enabled browser helper if recovery is required. A desktop capture process alone cannot reliably inspect or restart browser playback.
+- Prefer confirmed stall/error recovery over scheduled interruption. Use playback progress and player events where available; silence or static pixels alone are insufficient.
+- Offer optional “Refresh selected tab every …”, off by default, with a configurable interval, countdown, Skip and Refresh now. Do not claim an untested interval fixes a service.
+- Target only the user-selected tab through an authorised helper; never send global refresh keys to the active window.
+- Reload, wait for readiness, attempt normal playback where allowed and verify progress. Login, CAPTCHA, playback/device limits and protection errors require user action. Browser autoplay may prevent automatic resume.
+- Use bounded retries/backoff and cancel all recovery on Stop.
+- Investigate a continuous encoded “Reconnecting…” card with silent audio to preserve the Plex session during recovery. Verify client tolerance and timestamps. Never relay login screens during recovery.
+- Refresh interrupts the live source and can lose footage; buffering cannot reconstruct missing content.
+- Test beyond observed failure duration, plus network loss, expired login and static scenes. Log outcomes with secrets redacted.
+- Verify source capture and access before extensive UI work. Unsupported sources must be labelled honestly.
+
+Reference: https://support.plex.tv/articles/204232573-restricting-the-shares/
