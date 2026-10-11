@@ -5,10 +5,12 @@
 // Capture starts when the person clicks "Broadcast this tab" (Chrome requires
 // that click). After that, the tuner says when Plex starts and stops
 // watching. Capture continues across reloads of the tab, so the tab can be
-// refreshed when someone starts watching.
+// refreshed when someone starts watching, and the video can be paused when
+// nobody is watching and played again when someone starts.
 
 const RETRY_DELAYS = [1000, 2000, 5000, 10000];
-const PLAY_CHECKS_MS = [6000, 12000, 20000];
+const PLAY_CHECKS_MS = [6000, 12000, 20000];   // after a reload
+const RESUME_CHECKS_MS = [300, 4000, 10000];   // after a pause, without reloading
 const MAX_UNSENT_BYTES = 32 * 1024 * 1024;
 const MIME_TYPES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 
@@ -19,6 +21,7 @@ const s = {
   tabTitle: '',
   port: 34500,
   reloadOnWatch: true,
+  pauseWhenIdle: true,
   stream: null,
   audioOut: null,
   ws: null,
@@ -33,7 +36,7 @@ const s = {
 
 function snapshot() {
   return {state: s.state, message: s.message, tabId: s.tabId, tabTitle: s.tabTitle, viewers: s.viewers,
-    reloadOnWatch: s.reloadOnWatch, port: s.port};
+    reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle, port: s.port};
 }
 
 function toWorker(message) {
@@ -52,10 +55,10 @@ function send(message) {
 }
 
 // ---- Capture ---------------------------------------------------------------
-async function arm({streamId, tabId, tabTitle, port, reloadOnWatch}) {
+async function arm({streamId, tabId, tabTitle, port, reloadOnWatch, pauseWhenIdle = true}) {
   disarm('Switching to a new tab.', true);
   s.armed = true;
-  s.tabId = tabId; s.tabTitle = tabTitle ?? ''; s.port = port; s.reloadOnWatch = !!reloadOnWatch;
+  s.tabId = tabId; s.tabTitle = tabTitle ?? ''; s.port = port; s.reloadOnWatch = !!reloadOnWatch; s.pauseWhenIdle = !!pauseWhenIdle;
   set('starting', 'Starting tab capture…');
   try {
     const media = await navigator.mediaDevices.getUserMedia({
@@ -116,7 +119,7 @@ function connect() {
   ws.onopen = () => {
     if (s.ws !== ws) return;
     s.retry = 0;
-    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch}));
+    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle}));
     set('ready', 'Ready. Waiting for someone to watch Tohyee TV in Plex.');
   };
   ws.onmessage = event => {
@@ -124,7 +127,7 @@ function connect() {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
     if (message.type === 'start') startRecorder(message.session);
-    else if (message.type === 'stop') { stopRecorder(); if (s.armed) set('ready', 'Ready. Nobody is watching right now.'); }
+    else if (message.type === 'stop') nobodyWatching();
     else if (message.type === 'viewers') viewersChanged(Number(message.count) || 0);
   };
   ws.onclose = () => {
@@ -181,12 +184,36 @@ function stopRecorder() {
   }
 }
 
-// ---- Refresh when someone starts watching ---------------------------------
+// ---- When someone starts or stops watching --------------------------------
 function viewersChanged(count) {
   const started = s.viewers === 0 && count > 0;
   s.viewers = count;
   if (count === 0) clearPlayChecks();
-  if (started && s.reloadOnWatch && s.tabId !== null) refreshForViewer();
+  if (!started || s.tabId === null) return;
+  if (s.reloadOnWatch) refreshForViewer();
+  else if (s.pauseWhenIdle) resumeForViewer();
+}
+
+// The tuner says this once nobody has been watching for a few seconds (so a
+// quick channel change in Plex doesn't pause the video).
+async function nobodyWatching() {
+  stopRecorder();
+  clearPlayChecks();
+  if (!s.armed) return;
+  if (!s.pauseWhenIdle || s.tabId === null) { set('ready', 'Ready. Nobody is watching right now.'); return; }
+  const tabId = s.tabId;
+  const result = await toWorker({type: 'pauseVideo', tabId});
+  if (s.tabId !== tabId || s.viewers > 0) return;
+  if (result?.paused) set('ready', 'Nobody is watching — paused the video. It will play again when someone starts watching.');
+  else if (result?.permission === false) set('ready', 'Nobody is watching. Couldn’t pause the video: Tohyee TV wasn’t given permission on this site.');
+  else set('ready', 'Nobody is watching. No video was found to pause.');
+}
+
+function resumeForViewer() {
+  clearPlayChecks();
+  const tabId = s.tabId;
+  set(s.state, 'Someone started watching — pressing Play…');
+  for (const ms of RESUME_CHECKS_MS) s.playTimers.push(setTimeout(() => checkPlaying(tabId, ms === RESUME_CHECKS_MS.at(-1)), ms));
 }
 
 async function refreshForViewer() {
@@ -208,12 +235,12 @@ async function checkPlaying(tabId, last) {
   if (s.tabId !== tabId) return;
   if (result?.playing) {
     clearPlayChecks();
-    set(s.state, 'Reloaded and playing.');
+    set(s.state, 'Playing.');
   } else if (result?.permission === false) {
     clearPlayChecks();
-    set(s.state, 'Reloaded. Press Play on the tab if the video didn’t start (Tohyee TV wasn’t given permission to press Play on this site).');
+    set(s.state, 'Press Play on the tab if the video isn’t playing (Tohyee TV wasn’t given permission to press Play on this site).');
   } else if (last) {
-    set(s.state, 'Reloaded, but the video isn’t playing. It may need you to press Play or sign in on the tab.');
+    set(s.state, 'The video isn’t playing. It may need you to press Play or sign in on the tab.');
   }
 }
 
@@ -230,6 +257,7 @@ chrome.runtime.onMessage.addListener((request, sender, respond) => {
   else if (request.type === 'title') { if (request.tabId === s.tabId) { s.tabTitle = request.title ?? ''; send({type: 'status', state: s.state, message: s.message, tabTitle: s.tabTitle}); } respond(snapshot()); }
   else if (request.type === 'settings') {
     if ('reloadOnWatch' in request) s.reloadOnWatch = !!request.reloadOnWatch;
+    if ('pauseWhenIdle' in request) s.pauseWhenIdle = !!request.pauseWhenIdle;
     respond(snapshot());
   } else respond(snapshot());
 });

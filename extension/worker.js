@@ -2,7 +2,7 @@
 // popup, keeps the toolbar badge up to date, and does the tab actions the
 // offscreen page asks for (reload the tab, check its video is playing).
 
-const DEFAULTS = {port: 34500, reloadOnWatch: true};
+const DEFAULTS = {port: 34500, reloadOnWatch: true, pauseWhenIdle: true};
 let creating;
 
 async function settings() {
@@ -58,10 +58,29 @@ function playMainVideo() {
   return {found: true, playing, area: main.clientWidth * main.clientHeight};
 }
 
-async function ensurePlaying(tabId) {
+// Runs inside the broadcast tab (all frames): pauses the main video.
+function pauseMainVideo() {
+  const videos = [...document.querySelectorAll('video')];
+  if (!videos.length) return {found: false};
+  const main = videos.sort((a, b) => (b.clientWidth * b.clientHeight) - (a.clientWidth * a.clientHeight))[0];
+  if (!main.paused) main.pause();
+  return {found: true, paused: main.paused, area: main.clientWidth * main.clientHeight};
+}
+
+async function sitePermitted(tabId) {
   const tab = await chrome.tabs.get(tabId);
-  const origin = new URL(tab.url).origin;
-  if (!(await chrome.permissions.contains({origins: [`${origin}/*`]}))) return {permission: false};
+  return chrome.permissions.contains({origins: [`${new URL(tab.url).origin}/*`]});
+}
+
+async function pauseVideo(tabId) {
+  if (!(await sitePermitted(tabId))) return {permission: false};
+  const results = await chrome.scripting.executeScript({target: {tabId, allFrames: true}, func: pauseMainVideo});
+  const found = results.map(r => r.result).filter(r => r?.found).sort((a, b) => b.area - a.area);
+  return {found: found.length > 0, paused: found.length > 0 && found[0].paused};
+}
+
+async function ensurePlaying(tabId) {
+  if (!(await sitePermitted(tabId))) return {permission: false};
   const results = await chrome.scripting.executeScript({target: {tabId, allFrames: true}, func: playMainVideo});
   const found = results.map(r => r.result).filter(r => r?.found).sort((a, b) => b.area - a.area);
   return {playing: found.length > 0 && found[0].playing, found: found.length > 0};
@@ -70,11 +89,11 @@ async function ensurePlaying(tabId) {
 async function broadcast() {
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   if (!tab?.id || !/^https?:/.test(tab.url ?? '')) throw new Error('Open the website tab you want to broadcast, then click Tohyee TV there.');
-  const {port, reloadOnWatch} = await settings();
+  const {port, reloadOnWatch, pauseWhenIdle} = await settings();
   await ensureOffscreen();
   const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId: tab.id});
   await chrome.storage.session.set({broadcastTabId: tab.id});
-  return toOffscreen({type: 'arm', streamId, tabId: tab.id, tabTitle: tab.title, port, reloadOnWatch});
+  return toOffscreen({type: 'arm', streamId, tabId: tab.id, tabTitle: tab.title, port, reloadOnWatch, pauseWhenIdle});
 }
 
 async function command(message) {
@@ -91,6 +110,7 @@ async function command(message) {
     case 'saveSettings': {
       const update = {};
       if (typeof message.reloadOnWatch === 'boolean') update.reloadOnWatch = message.reloadOnWatch;
+      if (typeof message.pauseWhenIdle === 'boolean') update.pauseWhenIdle = message.pauseWhenIdle;
       if (Number.isInteger(message.port) && message.port > 0 && message.port < 65536) update.port = message.port;
       await chrome.storage.local.set(update);
       if (await hasOffscreen()) await toOffscreen({type: 'settings', ...update});
@@ -102,6 +122,12 @@ async function command(message) {
         return {ok: true};
       } catch (error) {
         return {ok: false, error: error.message};
+      }
+    case 'pauseVideo':
+      try {
+        return await pauseVideo(message.tabId);
+      } catch (error) {
+        return {paused: false, error: error.message};
       }
     case 'ensurePlaying':
       try {

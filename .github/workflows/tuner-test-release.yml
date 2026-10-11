@@ -76,6 +76,7 @@ jobs:
           $errors = ffmpeg -v error -i "$env:RUNNER_TEMP\chrome.ts" -f null - 2>&1
           if ($errors) { throw "Chrome path stream has decode errors: $errors" }
           if (-not (Select-String -Path "$env:RUNNER_TEMP\e2e-out.txt" -Pattern 'reloadTab' -Quiet)) { throw 'Extension did not reload the tab when Plex started watching' }
+          if (-not (Select-String -Path "$env:RUNNER_TEMP\e2e-out.txt" -Pattern 'pauseVideo' -Quiet)) { throw 'Extension did not pause the video when Plex stopped watching' }
           'Chrome path passed.'
           Start-Sleep -Seconds 1
           $p = Start-Process -FilePath "$dir\node.exe" -ArgumentList @('app\src\main.js', '--test-pattern', '--config', "$env:RUNNER_TEMP\tuner.json") -WorkingDirectory $dir -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\out.txt" -RedirectStandardError "$env:RUNNER_TEMP\err.txt"
@@ -110,9 +111,9 @@ jobs:
         run: |
           $v = '${{ steps.version.outputs.version }}'
           $notes = @"
-          First complete test build: broadcast a **Chrome tab** (picture and sound) to Plex as a live TV channel. Chrome only.
+          Test build: broadcast a **Chrome tab** (picture and sound) to Plex as a live TV channel. Chrome only. New: the video is **paused when nobody is watching** and played again when someone starts.
 
-          The download contains the **tuner** (a Windows program Plex sees as a TV tuner) and the **Chrome extension**. Picture and sound are only sent while someone watches in Plex, and the tab can be reloaded automatically each time someone starts watching.
+          The download contains the **tuner** (a Windows program Plex sees as a TV tuner) and the **Chrome extension**. Picture and sound are only sent while someone watches in Plex. The tab can be reloaded and played when someone starts watching, and paused when nobody is.
 
           ### Quick start (full steps in README.txt)
           1. Download **Tohyee-TV-Tuner-$v.zip** below and extract it somewhere permanent.

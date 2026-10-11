@@ -41,7 +41,7 @@ vm.runInNewContext(code, {
     onMessage: {addListener(fn) { listener = fn; }},
     sendMessage: async m => {
       if (m.type !== 'badge') log('asks worker:', m.type);
-      return m.type === 'reloadTab' ? {ok: true} : m.type === 'ensurePlaying' ? {playing: true} : undefined;
+      return m.type === 'reloadTab' ? {ok: true} : m.type === 'ensurePlaying' ? {playing: true} : m.type === 'pauseVideo' ? {paused: true} : undefined;
     }
   }},
   navigator: {mediaDevices: {getUserMedia: async () => media}},

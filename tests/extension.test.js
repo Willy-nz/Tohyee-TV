@@ -63,7 +63,7 @@ test('Broadcasting connects to the tuner on this computer and says hello', async
   assert.equal(state.state, 'connecting');
   assert.equal(h.sockets[0].url, 'ws://127.0.0.1:34500/source');
   h.sockets[0].open();
-  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true});
+  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, pauseWhenIdle: true});
   assert.equal((await h.send('status')).state, 'ready');
 });
 
@@ -80,7 +80,7 @@ test('Media is only sent while Plex is watching, starting with the session marke
   rec.chunk(100); rec.chunk(0); rec.chunk(200);
   assert.deepEqual(ws.sent.filter(d => typeof d !== 'string').map(d => d.size), [100, 200]);
   assert.equal((await h.send('status')).state, 'live');
-  ws.message({type: 'stop'});
+  ws.message({type: 'stop'}); await tick();
   assert.equal(rec.state, 'inactive');
   assert.equal((await h.send('status')).state, 'ready');
 });
@@ -105,7 +105,7 @@ test('When someone starts watching, the tab is reloaded and playback checked', a
   assert.equal([...h.timers.values()].length, 3, 'three playback checks scheduled');
   await h.runTimers(t => t.ms === 6000);
   assert.ok(h.toWorker.some(m => m.type === 'ensurePlaying'));
-  assert.match((await h.send('status')).message, /playing/);
+  assert.match((await h.send('status')).message, /Playing/);
   assert.equal(h.timers.size, 0, 'remaining checks cancelled once playing');
 });
 
@@ -127,6 +127,40 @@ test('Without permission to press Play, it says so instead of failing silently',
   h.sockets[0].message({type: 'viewers', count: 1}); await tick();
   await h.runTimers(t => t.ms === 6000);
   assert.match((await h.send('status')).message, /Press Play/);
+});
+
+test('When nobody is watching, the video is paused; when someone returns, Play is pressed', async () => {
+  const h = harness({workerReplies: {pauseVideo: () => ({paused: true}), ensurePlaying: () => ({playing: true})}});
+  await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, reloadOnWatch: false, pauseWhenIdle: true});
+  const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'start', session: 1});
+  ws.message({type: 'viewers', count: 1}); await tick();
+  ws.message({type: 'viewers', count: 0});
+  ws.message({type: 'stop'}); await tick();
+  assert.ok(h.toWorker.some(m => m.type === 'pauseVideo' && m.tabId === 7));
+  assert.match((await h.send('status')).message, /paused the video/);
+  assert.equal(h.toWorker.filter(m => m.type === 'reloadTab').length, 0, 'reload is off');
+  ws.message({type: 'viewers', count: 1}); await tick();
+  await h.runTimers(t => t.ms === 300);
+  assert.ok(h.toWorker.some(m => m.type === 'ensurePlaying'), 'presses Play when someone starts watching');
+  assert.match((await h.send('status')).message, /Playing/);
+});
+
+test('With pausing switched off, the video is left alone', async () => {
+  const h = harness({workerReplies: {pauseVideo: () => ({paused: true})}});
+  await h.send('arm', {streamId: 'sid', tabId: 7, port: 34500, reloadOnWatch: false, pauseWhenIdle: false});
+  const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'start', session: 1}); ws.message({type: 'stop'}); await tick();
+  assert.equal(h.toWorker.filter(m => m.type === 'pauseVideo').length, 0);
+  ws.message({type: 'viewers', count: 1}); await tick();
+  assert.equal(h.timers.size, 0, 'no Play presses either');
+});
+
+test('Without site permission, it says it could not pause', async () => {
+  const h = harness({workerReplies: {pauseVideo: () => ({permission: false})}});
+  await arm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick();
+  assert.match((await h.send('status')).message, /Couldn’t pause/);
 });
 
 test('If the tuner goes away, it keeps retrying and stops sending', async () => {

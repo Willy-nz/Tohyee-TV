@@ -20,6 +20,7 @@ function render(data) {
   el('stop').hidden = !active;
   el('broadcast').disabled = busy;
   if (document.activeElement !== el('reload')) el('reload').checked = data.reloadOnWatch !== false;
+  if (document.activeElement !== el('pause')) el('pause').checked = data.pauseWhenIdle !== false;
   if (document.activeElement !== el('port') && data.port) el('port').value = data.port;
 }
 
@@ -28,16 +29,16 @@ async function poll() {
   try { render(await send({type: 'status'})); } catch (error) { el('message').textContent = error.message; }
 }
 
-// Ask (once per site) for permission to press Play after a reload. Must run
-// in the popup, straight from the click. Declining still lets you broadcast.
+// Ask (once per site) for permission to press Play / Pause on the video. Must
+// run in the popup, straight from the click. Declining still lets you broadcast.
 async function askPlayPermission() {
-  if (!el('reload').checked) return;
+  if (!el('reload').checked && !el('pause').checked) return;
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   if (!tab?.url || !/^https?:/.test(tab.url)) return;
   const origins = [`${new URL(tab.url).origin}/*`];
   if (await chrome.permissions.contains({origins})) return;
   const granted = await chrome.permissions.request({origins}).catch(() => false);
-  if (!granted) el('message').textContent = 'OK — it will still reload the tab, but you may need to press Play yourself.';
+  if (!granted) el('message').textContent = 'OK — it can still reload the tab, but can’t press Play or Pause for you on this site.';
 }
 
 el('broadcast').addEventListener('click', async () => {
@@ -56,6 +57,10 @@ el('stop').addEventListener('click', async () => render(await send({type: 'stop'
 el('reload').addEventListener('change', async () => {
   if (el('reload').checked) await askPlayPermission();
   render({...(await send({type: 'saveSettings', reloadOnWatch: el('reload').checked})), ...(await send({type: 'status'}))});
+});
+el('pause').addEventListener('change', async () => {
+  if (el('pause').checked) await askPlayPermission();
+  render({...(await send({type: 'saveSettings', pauseWhenIdle: el('pause').checked})), ...(await send({type: 'status'}))});
 });
 el('save').addEventListener('click', async () => {
   const port = Number(el('port').value);

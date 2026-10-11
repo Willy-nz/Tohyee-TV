@@ -1,4 +1,4 @@
-# Tohyee TV — Chrome tab to Plex (test build 0.3.0-alpha.1)
+# Tohyee TV — Chrome tab to Plex (test build 0.3.1-alpha.1)
 
 Tohyee TV turns a **Chrome tab** (picture and sound) into a **live TV channel in Plex**. It works with **Chrome only**.
 
@@ -7,7 +7,7 @@ It has two parts, both in this download:
 - **The tuner** — a small Windows program. Plex sees it as a TV tuner with one channel, "Tohyee TV". Keep its window open while you want the channel available.
 - **The Chrome extension** — you click it on the tab you want to show (for example Sky Go) and choose **Broadcast this tab to Plex**.
 
-Picture and sound are **only sent while someone is watching** the channel in Plex. When someone starts watching, the extension can **reload the tab** first and press Play if the video doesn't start by itself.
+Picture and sound are **only sent while someone is watching** the channel in Plex. When someone starts watching, the extension can **reload the tab** and press Play; about 5 seconds after the last person stops watching, it can **pause the video**. Both are tickboxes in the extension, on by default.
 
 ## What you need
 - Windows, Chrome (version 116 or newer), and Plex Media Server on the same home network (or the same PC).
@@ -36,7 +36,7 @@ Chrome may show a banner about developer-mode extensions; that's expected for te
 ## 4. Broadcast a tab
 1. Open the video you want (for example Sky Go) in a Chrome tab and start it playing.
 2. Click the **Tohyee TV** icon and click **Broadcast this tab to Plex**.
-3. If "Reload the tab when someone starts watching" is ticked, Chrome asks once whether Tohyee TV may **read and change data on that site**. Allowing it lets Tohyee TV press Play after reloading. You can say no; it will still reload, but you may need to press Play yourself.
+3. With "Reload the tab…" or "Pause the video…" ticked, Chrome asks once whether Tohyee TV may **read and change data on that site**. Allowing it lets Tohyee TV press Play and Pause on the video. You can say no; it will still reload the tab, but you'll need to press Play yourself and it can't pause.
 4. The badge shows **ON** (ready, waiting for Plex) and **LIVE** while someone is watching. Chrome also shows its own sharing indicator on the tab.
 
 You can minimise Chrome or switch to another tab; capture keeps going. Closing the tab, or clicking **Stop broadcasting**, ends it.
@@ -60,7 +60,8 @@ Exact Plex labels can differ between versions. If a screen doesn't match, note w
 - Does Plex find the tuner, and does the guide show "Live Desktop"?
 - When you play the channel in Plex, does the extension badge change to **LIVE**, does the tab reload, and does the video start by itself?
 - Do picture and sound play in Plex Web? On your TV's Plex app? Are they in sync?
-- Does it keep playing for 30+ minutes? When you stop watching, does the badge go back to **ON** within about 10 seconds?
+- Does it keep playing for 30+ minutes? When you stop watching, does the badge go back to **ON** and the Sky Go video pause within about 10 seconds?
+- How far back can you rewind in Plex while watching? (Plex can only rewind what it received since you started watching.)
 - Plex Media Server version, where Plex runs, and any messages in the tuner window or extension popup.
 
 ## Settings
@@ -71,5 +72,6 @@ Saved in `%APPDATA%\Tohyee TV\tuner.json`, created on first start. You can chang
 - Tested automatically (including the real extension code feeding the real tuner, on Linux and a Windows build machine). **Not yet tested in real Chrome or with a real Plex server** — that's what this build is for.
 - Some sites protect their video from capture, which shows as black. A reload may need you to sign in or press Play.
 - When someone starts watching, Plex shows whatever the tab shows — including the page reloading.
+- Nothing is sent while nobody is watching, so Plex can't rewind to before you started watching.
 - The tuner can be reached by devices on your home network (that's how Plex connects). Only Chrome on this computer can send it video. Nothing is exposed to the internet or changes your router.
 - No installer, tray icon or start-with-Windows option yet.
