@@ -65,6 +65,8 @@ export class SourceHub {
       if (first) this.log(`Chrome connected${this.info.tabTitle ? `: broadcasting “${this.info.tabTitle}”` : ''}.`);
       else if (message.message) this.log(`Chrome: ${message.message}`);
     } else if (message.type === 'session' && message.session === this.session && this.sink) {
+      if (this.accepting) return;
+      this.onSession?.(String(message.mimeType ?? ''));
       this.accepting = true;
       this.log(`Chrome is sending picture and sound (${message.mimeType ?? 'unknown format'}).`);
     }
@@ -97,9 +99,10 @@ export class SourceHub {
   }
 
   // Called when the encoder starts: media for this new session goes to `sink`.
-  attach(sink) {
+  attach(sink, onSession) {
     this.session++;
     this.sink = sink;
+    this.onSession = onSession;
     this.accepting = false;
     sink.on?.('error', () => {}); // FFmpeg closing its input early is handled by the encoder's exit
     this.connection?.sendJson({type: 'start', session: this.session});
@@ -116,6 +119,11 @@ export class SourceHub {
   setViewers(count) {
     this.viewers = count;
     this.connection?.sendJson({type: 'viewers', count});
+  }
+
+  stopBroadcast() {
+    this.connection?.sendJson({type: 'shutdown'});
+    this.connection?.close(1000, 'Stopped from desktop');
   }
 
   status() {

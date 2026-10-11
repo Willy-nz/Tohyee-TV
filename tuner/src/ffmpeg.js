@@ -33,15 +33,15 @@ export function testPatternArgs({width = 1280, height = 720, fps = 30} = {}) {
 // Chrome's tab capture arrives as WebM (VP8/VP9/H.264 video, Opus audio) on
 // FFmpeg's standard input. Re-encode to a steady 30 fps (tab capture is
 // variable-rate), cap at 1080p, and keep audio in step with the video.
-export function chromeInputArgs({fps = 30, maxWidth = 1920} = {}) {
+export function chromeInputArgs({fps = 30, maxWidth = 1920, copyVideo = false} = {}) {
   return [
     '-hide_banner', '-loglevel', 'warning',
     '-fflags', '+genpts+discardcorrupt', '-probesize', '2M', '-analyzeduration', '1500000',
     '-thread_queue_size', '1024', '-i', 'pipe:0',
     '-map', '0:v:0', '-map', '0:a:0?',
-    '-vf', `fps=${fps},scale='min(${maxWidth},iw)':-2,format=yuv420p`,
+    ...(copyVideo ? [] : ['-vf', `fps=${fps},scale='trunc(min(${maxWidth},iw)/2)*2':-2,format=yuv420p`]),
     '-af', 'aresample=async=1000:first_pts=0',
-    ...outputArgs({fps, videoBitrate: '6M'})
+    ...(copyVideo ? ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2', '-f', 'mpegts', '-mpegts_flags', '+resend_headers', '-muxdelay', '0', 'pipe:1'] : outputArgs({fps, videoBitrate: '6M'}))
   ];
 }
 

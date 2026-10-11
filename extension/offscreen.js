@@ -35,7 +35,7 @@ const s = {
 };
 
 function snapshot() {
-  return {state: s.state, message: s.message, tabId: s.tabId, tabTitle: s.tabTitle, viewers: s.viewers,
+  return {state: s.state, message: s.message, tabId: s.tabId, tabTitle: s.tabTitle, viewers: s.viewers, armed: s.armed,
     reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle, port: s.port};
 }
 
@@ -98,6 +98,7 @@ function disarm(message = 'Not broadcasting.', quiet = false) {
   s.audioOut?.close().catch(() => {});
   s.audioOut = null;
   s.viewers = 0;
+  s.wasWatching = false;
   s.tabId = null;
   s.tabTitle = '';
   if (!quiet) { s.state = 'idle'; s.message = message; toWorker({type: 'badge', state: 'idle'}); }
@@ -126,7 +127,8 @@ function connect() {
     if (s.ws !== ws || typeof event.data !== 'string') return;
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
-    if (message.type === 'start') startRecorder(message.session);
+    if (message.type === 'shutdown') disarm('Stopped from the Windows app.');
+    else if (message.type === 'start') startRecorder(message.session);
     else if (message.type === 'stop') nobodyWatching();
     else if (message.type === 'viewers') viewersChanged(Number(message.count) || 0);
   };
@@ -136,6 +138,7 @@ function connect() {
     stopRecorder();
     clearPlayChecks();
     s.viewers = 0;
+    s.wasWatching = false;
     if (!s.armed) return;
     const delay = RETRY_DELAYS[Math.min(s.retry++, RETRY_DELAYS.length - 1)];
     s.state = 'connecting';
@@ -164,16 +167,21 @@ function startRecorder(session) {
   recorder.ondataavailable = event => {
     if (s.recorder !== recorder || !event.data.size || ws.readyState !== 1) return;
     if (ws.bufferedAmount > MAX_UNSENT_BYTES) {
-      stopRecorder();
-      set('error', 'The connection to the tuner fell behind. It will restart when Plex retries.');
+      failStream('The connection fell behind. Reconnecting to the tuner…');
       return;
     }
     ws.send(event.data);
   };
-  recorder.onerror = () => { if (s.recorder === recorder) { stopRecorder(); set('error', 'Recording failed.'); } };
+  recorder.onerror = () => { if (s.recorder === recorder) failStream('Recording failed. Reconnecting to the tuner…'); };
   ws.send(JSON.stringify({type: 'session', session, mimeType}));
   recorder.start(250);
   set('live', 'LIVE — sending this tab to Plex.');
+}
+
+function failStream(message) {
+  stopRecorder();
+  set('error', message);
+  s.ws?.close(1011, 'Media stopped');
 }
 
 function stopRecorder() {
@@ -186,9 +194,10 @@ function stopRecorder() {
 
 // ---- When someone starts or stops watching --------------------------------
 function viewersChanged(count) {
-  const started = s.viewers === 0 && count > 0;
+  const started = s.viewers === 0 && count > 0 && s.playTimers.length === 0 && !s.wasWatching;
   s.viewers = count;
   if (count === 0) clearPlayChecks();
+  if (count > 0) s.wasWatching = true;
   if (!started || s.tabId === null) return;
   if (s.reloadOnWatch) refreshForViewer();
   else if (s.pauseWhenIdle) resumeForViewer();
@@ -197,6 +206,7 @@ function viewersChanged(count) {
 // The tuner says this once nobody has been watching for a few seconds (so a
 // quick channel change in Plex doesn't pause the video).
 async function nobodyWatching() {
+  s.wasWatching = false;
   stopRecorder();
   clearPlayChecks();
   if (!s.armed) return;

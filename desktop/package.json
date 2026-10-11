@@ -1,0 +1,62 @@
+{
+  "name": "tohyee-tv-desktop",
+  "productName": "Tohyee TV",
+  "version": "0.4.0-alpha.1",
+  "description": "A Windows companion for broadcasting Chrome tabs to Plex",
+  "author": "Tohyee TV contributors",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "nz.tohyee.tv",
+    "productName": "Tohyee TV",
+    "directories": {
+      "output": "../dist"
+    },
+    "files": [
+      "*.cjs",
+      "*.js",
+      "*.html",
+      "*.css",
+      "*.svg",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../tuner",
+        "to": "tuner",
+        "filter": [
+          "src/**",
+          "package.json"
+        ]
+      },
+      {
+        "from": "../extension",
+        "to": "extension"
+      },
+      {
+        "from": "../vendor/ffmpeg",
+        "to": "ffmpeg"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico",
+      "artifactName": "Tohyee-TV-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "include": "installer.nsh"
+    }
+  }
+}

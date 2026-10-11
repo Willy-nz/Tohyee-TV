@@ -210,3 +210,18 @@ test('Extension manifest asks only for what it needs', () => {
   assert.equal(m.host_permissions, undefined, 'site access is only requested per site, when needed');
   assert.match(m.content_security_policy.extension_pages, /connect-src ws:\/\/127\.0\.0\.1:\*$/);
 });
+
+test('Desktop Stop disarms the extension and stops all tracks',async()=>{
+ const h=harness();await arm(h);const ws=h.sockets[0];ws.open();ws.message({type:'shutdown'});
+ assert.equal((await h.send('status')).armed,false);assert.ok(h.tracks.every(t=>t.readyState==='ended'));
+});
+test('Fast Plex reconnect does not reload the source twice',async()=>{
+ const h=harness({workerReplies:{reloadTab:()=>({ok:true})}});await arm(h);const ws=h.sockets[0];ws.open();
+ ws.message({type:'viewers',count:1});await tick();ws.message({type:'viewers',count:0});ws.message({type:'viewers',count:1});await tick();
+ assert.equal(h.toWorker.filter(m=>m.type==='reloadTab').length,1);
+});
+test('Recorder failure closes transport and remains stoppable',async()=>{
+ const h=harness();await arm(h);const ws=h.sockets[0];ws.open();ws.message({type:'start',session:1});h.recorders[0].onerror();
+ assert.equal(ws.readyState,3);assert.equal((await h.send('status')).armed,true);
+ await h.send('disarm');assert.ok(h.tracks.every(t=>t.readyState==='ended'));
+});

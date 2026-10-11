@@ -5,7 +5,7 @@
 // `base` is "http://host:port" built from the address Plex used to reach us,
 // so every URL we hand back is one Plex already knows it can reach.
 
-export const VERSION = '0.3.1';
+export const VERSION = '0.4.0-alpha.1';
 
 export function discover(base, config) {
   return {

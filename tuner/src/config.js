@@ -14,6 +14,7 @@ export const DEFAULTS = Object.freeze({
   channelNumber: '1',
   programmeTitle: 'Live Desktop',
   source: 'chrome',
+  videoMode: 'auto',
   ffmpegPath: ''
 });
 
@@ -37,6 +38,7 @@ export function validate(config) {
   }
   if (typeof config.listenAddress !== 'string' || !config.listenAddress) problems.push('listenAddress must be set');
   if (typeof config.ffmpegPath !== 'string') problems.push('ffmpegPath must be text');
+  if (config.videoMode !== undefined && !['auto','encode'].includes(config.videoMode)) problems.push('videoMode must be auto or encode');
   if (!['chrome', 'test'].includes(config.source)) problems.push('source must be "chrome" or "test"');
   return problems;
 }

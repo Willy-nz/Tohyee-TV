@@ -10,7 +10,7 @@ const send = message => chrome.runtime.sendMessage({target: 'worker', ...message
 function render(data) {
   if (!data) return;
   if (data.error) { el('message').textContent = data.error; return; }
-  const active = ['starting', 'connecting', 'ready', 'live'].includes(data.state);
+  const active = data.armed || ['starting', 'connecting', 'ready', 'live'].includes(data.state);
   el('status').textContent = LABELS[data.state] ?? data.state;
   el('status').className = data.state === 'live' ? 'live' : data.state === 'ready' ? 'ready' : data.state === 'error' ? 'error' : '';
   el('message').textContent = data.message ?? '';

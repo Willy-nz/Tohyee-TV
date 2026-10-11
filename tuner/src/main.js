@@ -10,6 +10,7 @@ import {findFfmpeg, testPatternArgs, chromeInputArgs} from './ffmpeg.js';
 import {SourceHub} from './source.js';
 import {Broadcaster} from './broadcaster.js';
 import {createTunerServer} from './server.js';
+import {startRuntime} from './runtime.js';
 import {VERSION} from './hdhr.js';
 
 const log = message => console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
@@ -22,7 +23,7 @@ function lanAddresses() {
   return found;
 }
 
-function main() {
+async function main() {
   const configArg = process.argv.indexOf('--config');
   const configPath = configArg > 0 ? process.argv[configArg + 1] : defaultConfigPath();
   let config;
@@ -48,20 +49,8 @@ function main() {
   // Default source is the Chrome extension; --test-pattern (or "source": "test"
   // in settings) plays a test picture and tone instead, for checking Plex alone.
   const useTest = process.argv.includes('--test-pattern') || config.source === 'test';
-  const source = useTest ? null : new SourceHub({log});
-  const broadcaster = new Broadcaster({
-    log,
-    onViewers: count => source?.setViewers(count),
-    onEncoderStop: () => source?.detach(),
-    spawnEncoder: () => {
-      if (useTest) return spawn(ffmpeg, testPatternArgs(), {stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true});
-      const encoder = spawn(ffmpeg, chromeInputArgs(), {stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true});
-      source.attach(encoder.stdin);
-      return encoder;
-    }
-  });
-  const server = createTunerServer({config, broadcaster, source, log});
-
+  const runtime = await startRuntime({config, ffmpeg, log, testPattern:useTest});
+  const {server, broadcaster} = runtime;
   server.on('error', error => {
     console.error(error.code === 'EADDRINUSE'
       ? `Port ${config.port} is already in use. Close the other program, or change "port" in ${configPath}.`
@@ -69,7 +58,7 @@ function main() {
     process.exitCode = 1;
   });
 
-  server.listen(config.port, config.listenAddress, () => {
+  {
     const addresses = lanAddresses();
     const primary = addresses[0] ?? '127.0.0.1';
     console.log(`
@@ -84,17 +73,15 @@ ${addresses.length > 1 ? `\n  This computer has several network addresses: ${add
 
 Press Ctrl+C to stop.
 `);
-  });
+  }
 
   const shutdown = () => {
     log('Shutting down…');
-    broadcaster.stop('shutting down');
-    server.close();
-    server.closeAllConnections?.();
+    runtime.close();
     setTimeout(() => process.exit(0), 500).unref();
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }
 
-main();
+main().catch(error=>{console.error(error.message);process.exitCode=1;});
