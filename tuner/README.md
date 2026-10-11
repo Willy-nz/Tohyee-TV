@@ -1,4 +1,4 @@
-# Tohyee TV — Chrome tab to Plex (test build 0.3.1-alpha.1)
+# Tohyee TV — Chrome tab to Plex (version 0.3.1)
 
 Tohyee TV turns a **Chrome tab** (picture and sound) into a **live TV channel in Plex**. It works with **Chrome only**.
 
