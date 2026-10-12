@@ -127,5 +127,5 @@ jobs:
           Automated tests pass, including the real extension code driving the real tuner, and a Windows smoke test with real FFmpeg. Not yet tested with a real Plex server or in real Chrome.
           "@ -replace '(?m)^          ', ''
           # Versions with a suffix (e.g. 0.4.0-alpha.1) are published as prereleases.
-          $pre = if ($v -match '-') { @('--prerelease') } else { @() }
-          gh release create "v$v" "dist/Tohyee-TV-Tuner-$v.zip" dist/SHA256SUMS.txt --target "$env:GITHUB_SHA" --title "Tohyee TV $v — Chrome tab to Plex" --notes $notes @pre
+          $flag = if ($v -match '-') { '--prerelease' } else { '--latest' }
+          gh release create "v$v" "dist/Tohyee-TV-Tuner-$v.zip" dist/SHA256SUMS.txt --target "$env:GITHUB_SHA" --title "Tohyee TV $v — Chrome tab to Plex" --notes $notes $flag
