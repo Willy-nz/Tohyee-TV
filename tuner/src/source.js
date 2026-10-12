@@ -1,7 +1,8 @@
 // The link to the Chrome extension that captures the chosen tab.
 //
 // Messages (JSON text unless noted):
-//   extension -> tuner  {type:'hello', version, tabTitle, reloadOnWatch}
+//   extension -> tuner  {type:'hello', version, tabTitle, reloadOnWatch, recorder}
+//                       (recorder = the MediaRecorder type Chrome will use, e.g. 'video/webm;codecs=h264,opus')
 //                       {type:'status', tabTitle, state, message}
 //                       {type:'session', session, mimeType}  then binary WebM chunks
 //   tuner -> extension  {type:'viewers', count}     whenever the number of Plex connections changes
@@ -13,13 +14,15 @@
 // session, so the encoder always receives a WebM stream from its beginning.
 
 import {acceptUpgrade} from './ws.js';
+import {recorderCodec} from './ffmpeg.js';
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 export class SourceHub {
-  constructor({log = () => {}, maxQueuedBytes = 32 * 1024 * 1024} = {}) {
+  constructor({log = () => {}, maxQueuedBytes = 32 * 1024 * 1024, onSession = () => {}} = {}) {
     this.log = log;
     this.maxQueuedBytes = maxQueuedBytes;
+    this.onSession = onSession;
     this.connection = null;
     this.info = null;
     this.sink = null;
@@ -27,9 +30,13 @@ export class SourceHub {
     this.accepting = false;
     this.viewers = 0;
     this.receivedBytes = 0;
+    this.videoMode = '';  // 'copy' or 'encode' for the current session, set by the tuner
   }
 
   get available() { return this.connection !== null; }
+
+  // The video codec Chrome said it will record with ('h264', 'vp8', ... or '').
+  get codec() { return recorderCodec(this.info?.recorder); }
 
   // Accepts the extension's WebSocket. Only this computer, and only a Chrome
   // extension page, may connect.
@@ -67,6 +74,7 @@ export class SourceHub {
     } else if (message.type === 'session' && message.session === this.session && this.sink) {
       this.accepting = true;
       this.log(`Chrome is sending picture and sound (${message.mimeType ?? 'unknown format'}).`);
+      this.onSession(recorderCodec(message.mimeType));
     }
   }
 
@@ -119,13 +127,13 @@ export class SourceHub {
   }
 
   status() {
-    return {connected: this.available, sending: this.accepting, viewers: this.viewers, ...this.info};
+    return {connected: this.available, sending: this.accepting, viewers: this.viewers, videoMode: this.videoMode, ...this.info};
   }
 }
 
 function pick(message) {
   const out = {};
-  for (const key of ['version', 'tabTitle', 'state', 'message', 'reloadOnWatch']) {
+  for (const key of ['version', 'tabTitle', 'state', 'message', 'reloadOnWatch', 'recorder']) {
     if (key in message) out[key] = typeof message[key] === 'string' ? message[key].slice(0, 200) : message[key];
   }
   return out;

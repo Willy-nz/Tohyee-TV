@@ -1,4 +1,4 @@
-# Tohyee TV — Chrome tab to Plex (version 0.3.1)
+# Tohyee TV — Chrome tab to Plex (version 0.4.0)
 
 Tohyee TV turns a **Chrome tab** (picture and sound) into a **live TV channel in Plex**. It works with **Chrome only**.
 
@@ -8,6 +8,8 @@ It has two parts, both in this download:
 - **The Chrome extension** — you click it on the tab you want to show (for example Sky Go) and choose **Broadcast this tab to Plex**.
 
 Picture and sound are **only sent while someone is watching** the channel in Plex. When someone starts watching, the extension can **reload the tab** and press Play; about 5 seconds after the last person stops watching, it can **pause the video**. Both are tickboxes in the extension, on by default.
+
+Chrome already compresses the picture, so where possible the tuner **passes it straight to Plex** rather than compressing it a second time. In testing that used about 3% of the CPU and kept the picture exactly as Chrome produced it. If that isn't possible (see *Settings*), it re-compresses automatically.
 
 ## What you need
 - Windows, Chrome (version 116 or newer), and Plex Media Server on the same home network (or the same PC).
@@ -67,8 +69,14 @@ Exact Plex labels can differ between versions. If a screen doesn't match, note w
 ## Settings
 Saved in `%APPDATA%\Tohyee TV\tuner.json`, created on first start. You can change the port, channel name or number, or point `ffmpegPath` at a specific `ffmpeg.exe`; restart the tuner after editing. Keep `deviceId` the same — Plex recognises the tuner by it. If you change the port, also change it under **Advanced** in the extension popup.
 
+`video` controls how the picture is handled:
+- `"auto"` (default) — pass Chrome's picture straight through when Chrome sends H.264 with a keyframe at least every 6 seconds (the extension asks for one every 2). Otherwise re-compress. If keyframes stop arriving mid-stream, it switches to re-compressing without disconnecting Plex and stays that way until the tuner is restarted. The tuner window says which it's doing.
+- `"encode"` — always re-compress (the previous behaviour; uses much more CPU).
+- `"copy"` — always pass through, even if keyframes are sparse.
+
 ## Limits of this test build
 - One channel and one tab at a time.
+- When the picture is passed straight through, its frame rate follows the tab (it isn't forced to 30 fps), which also avoids judder on 25 fps video. Whether every Plex app is happy with that is part of what this build tests; set `video` to `"encode"` if one isn't.
 - Tested automatically (including the real extension code feeding the real tuner, on Linux and a Windows build machine). **Not yet tested in real Chrome or with a real Plex server** — that's what this build is for.
 - Some sites protect their video from capture, which shows as black. A reload may need you to sign in or press Play.
 - When someone starts watching, Plex shows whatever the tab shows — including the page reloading.

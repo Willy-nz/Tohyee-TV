@@ -12,7 +12,13 @@ const RETRY_DELAYS = [1000, 2000, 5000, 10000];
 const PLAY_CHECKS_MS = [6000, 12000, 20000];   // after a reload
 const RESUME_CHECKS_MS = [300, 4000, 10000];   // after a pause, without reloading
 const MAX_UNSENT_BYTES = 32 * 1024 * 1024;
+// H.264 first: the tuner can pass it straight to Plex without re-encoding.
 const MIME_TYPES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+// Ask for a keyframe every 2 seconds (milliseconds, per the MediaRecorder
+// spec). Plex needs regular keyframes to start and join the stream; if Chrome
+// doesn't honour this, the tuner notices and switches to re-encoding.
+const KEYFRAME_INTERVAL_MS = 2000;
+const recorderType = () => MIME_TYPES.find(t => MediaRecorder.isTypeSupported(t)) ?? '';
 
 const s = {
   state: 'idle',            // idle | starting | connecting | ready | live | error
@@ -119,7 +125,7 @@ function connect() {
   ws.onopen = () => {
     if (s.ws !== ws) return;
     s.retry = 0;
-    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle}));
+    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle, recorder: recorderType()}));
     set('ready', 'Ready. Waiting for someone to watch Tohyee TV in Plex.');
   };
   ws.onmessage = event => {
@@ -149,11 +155,11 @@ function connect() {
 function startRecorder(session) {
   stopRecorder();
   if (!s.stream || !s.ws || s.ws.readyState !== 1) return;
-  const mimeType = MIME_TYPES.find(t => MediaRecorder.isTypeSupported(t));
+  const mimeType = recorderType();
   if (!mimeType) { set('error', 'Chrome has no supported video recorder.'); return; }
   let recorder;
   try {
-    recorder = new MediaRecorder(s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000});
+    recorder = new MediaRecorder(s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000, videoKeyFrameIntervalDuration: KEYFRAME_INTERVAL_MS});
   } catch (error) {
     set('error', `Could not start sending: ${error.message}`);
     return;

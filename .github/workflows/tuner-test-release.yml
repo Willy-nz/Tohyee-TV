@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
     paths: [.github/workflows/tuner-test-release.yml, tuner/package.json]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: write
@@ -30,7 +32,10 @@ jobs:
           if (-not $version) { throw 'No version in tuner/package.json' }
           "version=$version" >> $env:GITHUB_OUTPUT
           gh release view "v$version" 2>$null
-          if ($LASTEXITCODE -eq 0) { throw "Release v$version already exists; bump the version in tuner/package.json." }
+          if ($LASTEXITCODE -eq 0) {
+            if ('${{ github.event_name }}' -eq 'pull_request') { "::warning::Release v$version already exists; bump the version in tuner/package.json before merging to publish a new release." }
+            else { throw "Release v$version already exists; bump the version in tuner/package.json." }
+          }
           $global:LASTEXITCODE = 0
         env:
           GH_TOKEN: ${{ github.token }}
@@ -77,7 +82,25 @@ jobs:
           if ($errors) { throw "Chrome path stream has decode errors: $errors" }
           if (-not (Select-String -Path "$env:RUNNER_TEMP\e2e-out.txt" -Pattern 'reloadTab' -Quiet)) { throw 'Extension did not reload the tab when Plex started watching' }
           if (-not (Select-String -Path "$env:RUNNER_TEMP\e2e-out.txt" -Pattern 'pauseVideo' -Quiet)) { throw 'Extension did not pause the video when Plex stopped watching' }
-          'Chrome path passed.'
+          if (-not (Select-String -Path "$env:RUNNER_TEMP\chrome-out.txt" -Pattern 'straight through' -Quiet)) { throw 'Expected Chrome H.264 to be passed straight through' }
+          'Chrome path (pass-through) passed.'
+          # Chrome H.264 without regular keyframes: the tuner must switch to re-encoding without dropping the viewer.
+          Start-Sleep -Seconds 1
+          $c = Start-Process -FilePath "$dir\node.exe" -ArgumentList @('app\src\main.js', '--config', "$env:RUNNER_TEMP\tuner.json") -WorkingDirectory $dir -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\sparse-out.txt" -RedirectStandardError "$env:RUNNER_TEMP\sparse-err.txt"
+          Start-Sleep -Seconds 3
+          $env:E2E_KEYINT = '900'
+          $e = Start-Process -FilePath node -ArgumentList @('scripts/e2e-chrome.mjs', '25') -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\sparse-e2e.txt" -RedirectStandardError "$env:RUNNER_TEMP\sparse-e2e-err.txt"
+          Remove-Item Env:E2E_KEYINT
+          Start-Sleep -Seconds 3
+          curl.exe -sS -m 16 -o "$env:RUNNER_TEMP\sparse.ts" http://127.0.0.1:34500/stream/1
+          Start-Sleep -Seconds 4
+          Stop-Process -Id $e.Id -Force -ErrorAction SilentlyContinue
+          Stop-Process -Id $c.Id -Force
+          Get-Content "$env:RUNNER_TEMP\sparse-out.txt"
+          if (-not (Select-String -Path "$env:RUNNER_TEMP\sparse-out.txt" -Pattern 'Switching to re-encoding' -Quiet)) { throw 'Expected a switch to re-encoding when keyframes are missing' }
+          $errors = ffmpeg -v error -i "$env:RUNNER_TEMP\sparse.ts" -f null - 2>&1
+          if ($errors) { throw "Stream across the switch has decode errors: $errors" }
+          'Chrome path (fallback to re-encoding) passed.'
           Start-Sleep -Seconds 1
           $p = Start-Process -FilePath "$dir\node.exe" -ArgumentList @('app\src\main.js', '--test-pattern', '--config', "$env:RUNNER_TEMP\tuner.json") -WorkingDirectory $dir -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\out.txt" -RedirectStandardError "$env:RUNNER_TEMP\err.txt"
           try {
@@ -106,6 +129,7 @@ jobs:
           $hash = (Get-FileHash "dist/Tohyee-TV-Tuner-$v.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  Tohyee-TV-Tuner-$v.zip" | Set-Content -NoNewline dist/SHA256SUMS.txt
       - name: Publish release
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

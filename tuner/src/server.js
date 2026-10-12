@@ -35,7 +35,8 @@ function sourceText(source) {
   if (!source) return 'test picture and tone';
   const s = source.status();
   if (!s.connected) return '<strong>Chrome not connected</strong> — click Tohyee TV in Chrome on your video tab and choose Broadcast.';
-  return `Chrome tab “${escapeXml(s.tabTitle ?? 'unknown')}”${s.sending ? ' — sending to Plex' : ' — ready, waiting for Plex'}${s.message ? ` · ${escapeXml(s.message)}` : ''}`;
+  const video = s.sending ? (s.videoMode === 'copy' ? ' (picture passed straight through)' : ' (picture re-encoded)') : '';
+  return `Chrome tab “${escapeXml(s.tabTitle ?? 'unknown')}”${s.sending ? ` — sending to Plex${video}` : ' — ready, waiting for Plex'}${s.message ? ` · ${escapeXml(s.message)}` : ''}`;
 }
 
 // `source` is the Chrome SourceHub, or null when playing the test pattern.

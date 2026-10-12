@@ -6,7 +6,7 @@ import {get as httpGet} from 'node:http';
 import {discover, lineup, lineupStatus, deviceXml, baseUrl, escapeXml} from '../tuner/src/hdhr.js';
 import {xmltv, xmltvTime} from '../tuner/src/guide.js';
 import {loadConfig, validate, DEFAULTS, defaultConfigPath} from '../tuner/src/config.js';
-import {findFfmpeg, testPatternArgs} from '../tuner/src/ffmpeg.js';
+import {findFfmpeg, testPatternArgs, chromeCopyArgs, chromeInputArgs, recorderCodec} from '../tuner/src/ffmpeg.js';
 import {TsTracker, PACKET} from '../tuner/src/ts.js';
 import {Broadcaster} from '../tuner/src/broadcaster.js';
 import {createTunerServer} from '../tuner/src/server.js';
@@ -107,6 +107,7 @@ const pmt = packet(PMT_PID, {start: true, payload: [0, 0x02, 0xb0, 23, 0, 1, 0xc
 const audioKey = packet(AUDIO, {start: true, randomAccess: true});
 const videoKey = packet(VIDEO, {start: true, randomAccess: true});
 const videoMid = packet(VIDEO);
+const videoFrame = packet(VIDEO, {start: true}); // start of a non-key picture
 
 test('TS tracker reassembles packets split across chunks and skips junk', () => {
   const t = new TsTracker();
@@ -349,4 +350,87 @@ test('With Chrome not connected, Plex gets a clear "not broadcasting" answer', (
   const res = await fetch(`http://127.0.0.1:${port}/stream/1`);
   assert.equal(res.status, 503);
   assert.match(await res.text(), /not broadcasting/);
+}));
+
+// ---- Pass-through (no re-encoding) ---------------------------------------
+test('Pass-through copies the picture and only converts the sound', () => {
+  const args = chromeCopyArgs();
+  assert.deepEqual(args.slice(args.indexOf('-c:v'), args.indexOf('-c:v') + 2), ['-c:v', 'copy']);
+  assert.ok(!args.includes('libx264') && !args.includes('-vf'));
+  assert.ok(args.includes('aac') && args.at(-1) === 'pipe:1');
+  assert.ok(!args.includes('-output_ts_offset'));
+  const later = chromeInputArgs({tsOffset: 12.5});
+  assert.equal(later[later.indexOf('-output_ts_offset') + 1], '12.500');
+  assert.ok(later.includes('libx264'));
+});
+test('Recorder types map to codecs', () => {
+  assert.equal(recorderCodec('video/webm;codecs=h264,opus'), 'h264');
+  assert.equal(recorderCodec('video/webm;codecs=avc1.42E01F'), 'h264');
+  assert.equal(recorderCodec('video/webm;codecs=vp8,opus'), 'vp8');
+  assert.equal(recorderCodec('video/webm'), '');
+  assert.equal(recorderCodec(undefined), '');
+});
+test('The video setting is checked', () => {
+  assert.deepEqual(validate({...config, video: 'auto'}), []);
+  assert.match(validate({...config, video: 'fast'}).join(), /video must be/);
+});
+
+test('A long run of pictures without a keyframe is reported once', async () => {
+  let time = 0; let enc; const gaps = [];
+  const b = new Broadcaster({now: () => time, maxKeyframeGapMs: 6000, minFramesForGap: 3,
+    onKeyframeGap: ms => gaps.push(ms), spawnEncoder: () => (enc = fakeEncoder())});
+  b.subscribe(fakeClient());
+  enc.stdout.write(Buffer.concat([pat, pmt, videoKey])); await tick();
+  for (let i = 0; i < 5; i++) { time += 2000; enc.stdout.write(videoFrame); await tick(); }
+  assert.equal(gaps.length, 1);
+  assert.ok(gaps[0] > 6000);
+  time += 2000; enc.stdout.write(videoFrame); await tick();
+  assert.equal(gaps.length, 1, 'only reported once per encoder');
+  b.stop();
+});
+test('No keyframe report while the picture is simply not changing (no frames)', async () => {
+  let time = 0; let enc; const gaps = [];
+  const b = new Broadcaster({now: () => time, maxKeyframeGapMs: 6000, minFramesForGap: 3,
+    onKeyframeGap: ms => gaps.push(ms), spawnEncoder: () => (enc = fakeEncoder())});
+  b.subscribe(fakeClient());
+  enc.stdout.write(Buffer.concat([pat, pmt, videoKey])); await tick();
+  time += 20000; enc.stdout.write(audioKey); await tick(); // audio only, no new pictures
+  assert.equal(gaps.length, 0);
+  b.stop();
+});
+test('Restarting the encoder keeps viewers connected and resyncs them at a keyframe', async () => {
+  let time = 1000; const encoders = []; const options = [];
+  const b = new Broadcaster({now: () => time, spawnEncoder: o => { options.push(o); const e = fakeEncoder(); encoders.push(e); return e; }});
+  const viewer = fakeClient(); let ended = false; viewer.on('end', () => { ended = true; });
+  b.subscribe(viewer);
+  encoders[0].stdout.write(Buffer.concat([pat, pmt, videoKey, videoMid])); await tick();
+  const before = Buffer.concat(viewer.received).length;
+  time += 30000;
+  b.restart('test');
+  assert.equal(encoders[0].killed, true);
+  assert.equal(encoders.length, 2);
+  assert.ok(Math.abs(options[1].tsOffset - 31) < 0.01, 'timestamps continue ~31 s in');
+  encoders[0].stdout.write(videoMid); encoders[0].emit('exit', null, 'SIGTERM'); await tick();
+  assert.equal(ended, false, 'old encoder exiting does not disconnect the viewer');
+  encoders[1].stdout.write(Buffer.concat([videoMid, pat, pmt, videoKey, videoMid])); await tick();
+  const after = Buffer.concat(viewer.received).subarray(before);
+  assert.deepEqual(after, Buffer.concat([pat, pmt, videoKey, videoMid]), 'resumes with tables then a keyframe');
+  assert.equal(b.clients.size, 1);
+  b.stop();
+});
+
+test('Chrome tells the tuner its recording codec, and confirms it per session', () => withHub(async ({hub, port}) => {
+  const sessions = [];
+  hub.onSession = codec => sessions.push(codec);
+  const ws = extensionSocket(port);
+  await new Promise(r => ws.addEventListener('open', r));
+  ws.send(JSON.stringify({type: 'hello', version: 'x', tabTitle: 't', recorder: 'video/webm;codecs=h264,opus'}));
+  await until(() => hub.codec === 'h264');
+  const sink = new PassThrough(); sink.resume();
+  hub.attach(sink);
+  await until(() => ws.received.some(m => m.type === 'start'));
+  ws.send(JSON.stringify({type: 'session', session: hub.session, mimeType: 'video/webm;codecs=h264,opus'}));
+  await until(() => sessions.length === 1);
+  assert.deepEqual(sessions, ['h264']);
+  ws.close();
 }));

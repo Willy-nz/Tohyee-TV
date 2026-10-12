@@ -63,7 +63,7 @@ test('Broadcasting connects to the tuner on this computer and says hello', async
   assert.equal(state.state, 'connecting');
   assert.equal(h.sockets[0].url, 'ws://127.0.0.1:34500/source');
   h.sockets[0].open();
-  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, pauseWhenIdle: true});
+  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, pauseWhenIdle: true, recorder: 'video/webm;codecs=vp8,opus'});
   assert.equal((await h.send('status')).state, 'ready');
 });
 
@@ -75,6 +75,7 @@ test('Media is only sent while Plex is watching, starting with the session marke
   const rec = h.recorders[0];
   assert.equal(rec.state, 'recording');
   assert.equal(rec.slice, 250);
+  assert.equal(rec.options.videoKeyFrameIntervalDuration, 2000, 'asks Chrome for a keyframe every 2 s');
   const session = ws.json().find(m => m.type === 'session');
   assert.deepEqual(session, {type: 'session', session: 3, mimeType: 'video/webm;codecs=vp8,opus'});
   rec.chunk(100); rec.chunk(0); rec.chunk(200);

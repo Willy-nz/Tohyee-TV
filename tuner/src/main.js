@@ -1,12 +1,13 @@
 // Starts the Tohyee TV tuner: a pretend HDHomeRun network tuner that Plex
-// can add under Live TV & DVR. Stage 1 plays a test picture and tone.
+// can add under Live TV & DVR. Plays a Chrome tab sent by the Tohyee TV extension
+// (or a test picture and tone with --test-pattern).
 
 import {spawn, spawnSync} from 'node:child_process';
 import {networkInterfaces} from 'node:os';
 import {dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadConfig, defaultConfigPath} from './config.js';
-import {findFfmpeg, testPatternArgs, chromeInputArgs} from './ffmpeg.js';
+import {findFfmpeg, testPatternArgs, chromeInputArgs, chromeCopyArgs} from './ffmpeg.js';
 import {SourceHub} from './source.js';
 import {Broadcaster} from './broadcaster.js';
 import {createTunerServer} from './server.js';
@@ -48,14 +49,42 @@ function main() {
   // Default source is the Chrome extension; --test-pattern (or "source": "test"
   // in settings) plays a test picture and tone instead, for checking Plex alone.
   const useTest = process.argv.includes('--test-pattern') || config.source === 'test';
-  const source = useTest ? null : new SourceHub({log});
+  // Video handling ("video" in settings):
+  //   auto   - pass Chrome's H.264 straight through (far less CPU, no extra
+  //            quality loss); switch to re-encoding if Chrome sends another
+  //            codec or doesn't send regular keyframes.
+  //   copy   - always pass through.   encode - always re-encode.
+  let copyBlocked = '';   // why pass-through was abandoned (auto mode), if it was
+  let currentCopy = false;
+  const wantCopy = () => {
+    if (config.video === 'copy') return true;
+    if (config.video === 'encode' || copyBlocked) return false;
+    return source.codec === 'h264';
+  };
+  const fallBack = reason => {
+    if (!currentCopy || config.video !== 'auto') return;
+    copyBlocked = reason;
+    log(`${reason} Switching to re-encoding (uses more CPU).`);
+    broadcaster.restart('switching to re-encoding');
+  };
+
+  const source = useTest ? null : new SourceHub({
+    log,
+    // Chrome confirms the actual recording format when it starts sending.
+    onSession: codec => { if (currentCopy && codec !== 'h264') fallBack(`Chrome is sending ${codec || 'an unknown format'}, not H.264.`); }
+  });
   const broadcaster = new Broadcaster({
     log,
     onViewers: count => source?.setViewers(count),
     onEncoderStop: () => source?.detach(),
-    spawnEncoder: () => {
+    onKeyframeGap: ms => fallBack(`Chrome's video went ${Math.round(ms / 1000)} seconds without a keyframe, which stops Plex starting it cleanly.`),
+    spawnEncoder: ({tsOffset = 0} = {}) => {
       if (useTest) return spawn(ffmpeg, testPatternArgs(), {stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true});
-      const encoder = spawn(ffmpeg, chromeInputArgs(), {stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true});
+      currentCopy = wantCopy();
+      source.videoMode = currentCopy ? 'copy' : 'encode';
+      log(currentCopy ? 'Passing Chrome’s picture straight through (no re-encoding).' : 'Re-encoding Chrome’s picture.');
+      const args = currentCopy ? chromeCopyArgs({tsOffset}) : chromeInputArgs({tsOffset});
+      const encoder = spawn(ffmpeg, args, {stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true});
       source.attach(encoder.stdin);
       return encoder;
     }
@@ -80,7 +109,7 @@ Tohyee TV tuner ${VERSION} is running. Keep this window open.
   Status page:             http://127.0.0.1:${config.port}/
 ${addresses.length > 1 ? `\n  This computer has several network addresses: ${addresses.join(', ')}.\n  Use the one on the same network as your Plex server.\n` : ''}
   Source: ${useTest ? 'test picture and tone' : 'Chrome tab (click Tohyee TV in Chrome and choose Broadcast)'}
-  Settings file: ${configPath}
+${useTest ? '' : `  Video: ${{auto: 'pass Chrome’s picture straight through when possible', copy: 'always pass through', encode: 'always re-encode'}[config.video]}\n`}  Settings file: ${configPath}
 
 Press Ctrl+C to stop.
 `);
