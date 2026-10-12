@@ -1,0 +1,12 @@
+:root{color-scheme:dark;font-family:Segoe UI,system-ui,sans-serif;background:#17181c;color:#eee}
+body{margin:0;min-height:100vh;display:grid;place-items:center}
+main{max-width:620px;padding:32px 16px;text-align:center}
+h1{font-size:30px;margin:18px 0 10px}
+p{color:#c9ccd5;line-height:1.6}
+.note{font-size:13px;color:#a9adb8}
+button{border:0;border-radius:7px;background:#efb438;color:#17181c;padding:12px 20px;font:inherit;font-weight:600;cursor:pointer;margin-top:8px}
+button:focus-visible{outline:3px solid #fff;outline-offset:4px}
+/* A small moving dot keeps the captured picture updating, so Plex never sees a frozen frame. */
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#efb438;vertical-align:middle;animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.dot{animation-duration:4s}}

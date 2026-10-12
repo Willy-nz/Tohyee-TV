@@ -7,8 +7,17 @@
 <button id="broadcast">Broadcast this tab to Plex</button>
 <button id="stop" class="secondary" hidden>Stop broadcasting</button>
 <label class="option"><input type="checkbox" id="reload"> Reload the tab when someone starts watching in Plex</label>
-<label class="option"><input type="checkbox" id="pause"> Pause the video when nobody is watching</label>
-<p class="note">Pausing does not guarantee a streaming service releases its viewing slot. Tohyee TV presses Play when someone starts watching (after reloading, if that’s on), and pauses about 5 seconds after the last person stops. Chrome will ask once for permission to do that on this site.</p>
+<label class="option stack" for="idleAction">When nobody is watching in Plex
+<select id="idleAction">
+<option value="standby">Leave the video page (frees one of your streams)</option>
+<option value="pause">Pause the video</option>
+<option value="none">Keep playing</option>
+</select></label>
+<label class="option" id="standbyRow" for="standbySeconds">Leave after
+<select id="standbySeconds">
+<option value="30">30 seconds</option><option value="60">1 minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option>
+</select></label>
+<p class="note">Some services, like Sky Go, limit how many devices can watch at once, and a paused video still counts. Leaving the page closes the player; Tohyee TV pauses straight away, leaves after the time above, and goes back and presses Play when someone starts watching. Chrome will ask once for permission to press Play and Pause on this site.</p>
 <details><summary>Advanced</summary><label class="option">Tuner port <input type="number" id="port" min="1" max="65535"></label><button id="save" class="secondary">Save</button></details>
 <p class="note">The Tohyee TV tuner must be running on this computer. Picture and sound are only sent while someone is watching in Plex. Closing the tab, or clicking Stop, ends the broadcast.</p>
 <script src="popup.js"></script></body></html>

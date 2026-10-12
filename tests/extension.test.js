@@ -63,7 +63,7 @@ test('Broadcasting connects to the tuner on this computer and says hello', async
   assert.equal(state.state, 'connecting');
   assert.equal(h.sockets[0].url, 'ws://127.0.0.1:34500/source/1');
   h.sockets[0].open();
-  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, pauseWhenIdle: true});
+  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, idleAction: 'standby'});
   assert.equal((await h.send('status')).state, 'ready');
 });
 
@@ -131,7 +131,7 @@ test('Without permission to press Play, it says so instead of failing silently',
 
 test('When nobody is watching, the video is paused; when someone returns, Play is pressed', async () => {
   const h = harness({workerReplies: {pauseVideo: () => ({paused: true}), ensurePlaying: () => ({playing: true})}});
-  await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, reloadOnWatch: false, pauseWhenIdle: true});
+  await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, reloadOnWatch: false, idleAction: 'pause'});
   const ws = h.sockets[0]; ws.open();
   ws.message({type: 'start', session: 1});
   ws.message({type: 'viewers', count: 1}); await tick();
@@ -146,9 +146,9 @@ test('When nobody is watching, the video is paused; when someone returns, Play i
   assert.match((await h.send('status')).message, /Playing/);
 });
 
-test('With pausing switched off, the video is left alone', async () => {
+test('With "Keep playing", the video is left alone', async () => {
   const h = harness({workerReplies: {pauseVideo: () => ({paused: true})}});
-  await h.send('arm', {streamId: 'sid', tabId: 7, port: 34500, reloadOnWatch: false, pauseWhenIdle: false});
+  await h.send('arm', {streamId: 'sid', tabId: 7, port: 34500, reloadOnWatch: false, idleAction: 'none'});
   const ws = h.sockets[0]; ws.open();
   ws.message({type: 'start', session: 1}); ws.message({type: 'stop'}); await tick();
   assert.equal(h.toWorker.filter(m => m.type === 'pauseVideo').length, 0);
@@ -158,9 +158,117 @@ test('With pausing switched off, the video is left alone', async () => {
 
 test('Without site permission, it says it could not pause', async () => {
   const h = harness({workerReplies: {pauseVideo: () => ({permission: false})}});
-  await arm(h); const ws = h.sockets[0]; ws.open();
+  await h.send('arm', {streamId: 'sid', tabId: 7, port: 34500, reloadOnWatch: false, idleAction: 'pause'});
+  const ws = h.sockets[0]; ws.open();
   ws.message({type: 'stop'}); await tick();
   assert.match((await h.send('status')).message, /Couldn’t pause/);
+});
+
+// ---- Standby: leave the video page so it stops using a stream --------------
+const standbyArm = (h, extra = {}) => h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', tabUrl: 'https://www.skygo.co.nz/watch/live/1', port: 34500, reloadOnWatch: true, idleAction: 'standby', standbySeconds: 60, ...extra});
+const standbyReplies = (more = {}) => ({pauseVideo: () => ({paused: true}), standbyTab: () => ({ok: true, url: null}), returnTab: () => ({ok: true}), ensurePlaying: () => ({playing: true}), reloadTab: () => ({ok: true}), ...more});
+
+test('Nobody watching: pause now, leave the video page after the set time', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'viewers', count: 1}); await tick();
+  await h.runTimers(); // reload/play checks from someone starting to watch
+  ws.message({type: 'viewers', count: 0}); ws.message({type: 'stop'}); await tick();
+  assert.ok(h.toWorker.some(m => m.type === 'pauseVideo'), 'pauses straight away');
+  assert.match((await h.send('status')).message, /Leaving the video page in 1 minute/);
+  assert.equal(h.toWorker.filter(m => m.type === 'standbyTab').length, 0, 'not yet');
+  const standbyTimer = [...h.timers.values()].find(t => t.ms === 60000);
+  assert.ok(standbyTimer, 'waits the chosen 60 s');
+  await h.runTimers(t => t.ms === 60000);
+  const leave = h.toWorker.find(m => m.type === 'standbyTab');
+  assert.equal(leave.tabId, 7); assert.equal(leave.channelNumber, '1');
+  const status = await h.send('status');
+  assert.equal(status.inStandby, true);
+  assert.match(status.message, /Standby/);
+  assert.equal(status.returnUrl, 'https://www.skygo.co.nz/watch/live/1');
+});
+
+test('Someone starts watching on standby: go back to the same video page and press Play', async () => {
+  const h = harness({workerReplies: standbyReplies({standbyTab: () => ({ok: true, url: 'https://www.skygo.co.nz/watch/live/5'})})});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick();
+  await h.runTimers(t => t.ms === 60000);
+  ws.message({type: 'viewers', count: 1}); await tick();
+  const back = h.toWorker.find(m => m.type === 'returnTab');
+  assert.equal(back.url, 'https://www.skygo.co.nz/watch/live/5', 'uses the page as it was when it left');
+  assert.equal(h.toWorker.filter(m => m.type === 'reloadTab').length, 0, 'going back already loads the page; no extra reload');
+  assert.equal((await h.send('status')).inStandby, false);
+  await h.runTimers(t => t.ms === 6000);
+  assert.ok(h.toWorker.some(m => m.type === 'ensurePlaying'));
+  assert.match((await h.send('status')).message, /Playing/);
+});
+
+test('Someone starts watching before the standby time: the page is never left', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick();
+  assert.ok([...h.timers.values()].some(t => t.ms === 60000));
+  ws.message({type: 'viewers', count: 1}); await tick();
+  assert.ok(![...h.timers.values()].some(t => t.ms === 60000), 'standby cancelled');
+  assert.equal(h.toWorker.filter(m => m.type === 'standbyTab').length, 0);
+  assert.ok(h.toWorker.some(m => m.type === 'reloadTab'), 'carries on as normal (reload is on)');
+});
+
+test('The standby time can be changed, and switching to Pause cancels a pending standby', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h, {standbySeconds: 300}); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick();
+  assert.ok([...h.timers.values()].some(t => t.ms === 300000));
+  assert.match((await h.send('status')).message, /5 minutes/);
+  await h.send('settings', {idleAction: 'pause'});
+  assert.ok(![...h.timers.values()].some(t => t.ms === 300000));
+});
+
+test('The standby page’s title is not reported as the programme', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick(); await h.runTimers(t => t.ms === 60000);
+  await h.send('title', {tabId: 7, title: 'Tohyee TV · standby'});
+  assert.equal((await h.send('status')).tabTitle, 'Sky Go');
+});
+
+test('Stopping the broadcast while on standby gives the video page back', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick(); await h.runTimers(t => t.ms === 60000);
+  await h.send('disarm', {message: 'Broadcast stopped.'});
+  assert.ok(h.toWorker.some(m => m.type === 'returnTab' && m.url === 'https://www.skygo.co.nz/watch/live/1'));
+  assert.equal((await h.send('status')).state, 'idle');
+});
+
+test('"Go back to the video now" on the standby page returns without waiting for Plex', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick(); await h.runTimers(t => t.ms === 60000);
+  await h.send('leaveStandby'); await tick();
+  assert.ok(h.toWorker.some(m => m.type === 'returnTab'));
+  const status = await h.send('status');
+  assert.equal(status.inStandby, false);
+  assert.match(status.message, /Back on the video page/);
+});
+
+test('If the page can’t be left, it says so and stays put', async () => {
+  const h = harness({workerReplies: standbyReplies({standbyTab: () => ({ok: false, error: 'No tab with id: 7'})})});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'stop'}); await tick(); await h.runTimers(t => t.ms === 60000);
+  const status = await h.send('status');
+  assert.equal(status.inStandby, false);
+  assert.match(status.message, /couldn’t be closed: No tab/);
+});
+
+test('Popup and worker offer the new choices; the standby page exists', () => {
+  const popup = fs.readFileSync(new URL('../extension/popup.html', import.meta.url), 'utf8');
+  for (const v of ['standby', 'pause', 'none']) assert.match(popup, new RegExp(`<option value="${v}"`));
+  assert.ok(!/id="pause"/.test(popup), 'old tickbox removed');
+  const worker = fs.readFileSync(new URL('../extension/worker.js', import.meta.url), 'utf8');
+  assert.match(worker, /idleAction: 'standby', standbySeconds: 60/);
+  assert.match(worker, /stored\.pauseWhenIdle === false\) result\.idleAction = 'none'/, 'old "pause off" setting carries over');
+  assert.ok(fs.existsSync(new URL('../extension/standby.html', import.meta.url)));
 });
 
 test('If the tuner goes away, it keeps retrying and stops sending', async () => {
