@@ -89,6 +89,7 @@ jobs:
           gh release view "v$v" 2>$null
           if ($LASTEXITCODE -eq 0) { throw 'Version already published. Bump the version rather than overwrite it.' }
           # Versions with a suffix (e.g. 0.6.0-alpha.1) are published as test releases.
-          $pre = if ($v -match '-') { @('--prerelease') } else { @('--latest') }
-          gh release create "v$v" $exe.FullName dist/SHA256SUMS.txt --target "$env:GITHUB_SHA" --title "Tohyee TV $v — Windows installer" --notes "$notes" @pre
+          # (A plain string, not an array: PowerShell turns a one-item array into a string, and splatting a string passes each character separately.)
+          $flag = if ($v -match '-') { '--prerelease' } else { '--latest' }
+          gh release create "v$v" $exe.FullName dist/SHA256SUMS.txt --target "$env:GITHUB_SHA" --title "Tohyee TV $v — Windows installer" --notes "$notes" $flag
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
