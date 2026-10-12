@@ -1,12 +1,20 @@
 // Background service worker: starts and stops broadcasting when asked by the
 // popup, keeps the toolbar badge up to date, and does the tab actions the
-// offscreen page asks for (reload the tab, check its video is playing).
+// offscreen page asks for (reload the tab, check its video is playing, move
+// it to the standby page and back).
 
-const DEFAULTS = {port: 34500, reloadOnWatch: true, pauseWhenIdle: true};
+const DEFAULTS = {port: 34500, reloadOnWatch: true, idleAction: 'standby', standbySeconds: 60};
+const IDLE_ACTIONS = ['standby', 'pause', 'none'];
+const STANDBY_SECONDS = [30, 60, 120, 300, 600];
 let creating;
 
 async function settings() {
-  return {...DEFAULTS, ...(await chrome.storage.local.get(Object.keys(DEFAULTS)))};
+  const stored = await chrome.storage.local.get([...Object.keys(DEFAULTS), 'pauseWhenIdle']);
+  const result = {...DEFAULTS, ...stored};
+  // Earlier versions had a pause on/off switch; someone who switched it off wants nothing done.
+  if (!('idleAction' in stored) && stored.pauseWhenIdle === false) result.idleAction = 'none';
+  delete result.pauseWhenIdle;
+  return result;
 }
 
 async function ensureOffscreen() {
@@ -89,10 +97,27 @@ async function ensurePlaying(tabId) {
 async function broadcast(channelNumber) {
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   if (!tab?.id || !/^https?:/.test(tab.url ?? '')) throw new Error('Open the website tab you want to broadcast, then click Tohyee TV there.');
-  const {port, reloadOnWatch, pauseWhenIdle} = await settings();
+  const {port, reloadOnWatch, idleAction, standbySeconds} = await settings();
   await ensureOffscreen();
   const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId: tab.id});
-  return toOffscreen({type: 'arm', channelNumber, streamId, tabId: tab.id, tabTitle: tab.title, port, reloadOnWatch, pauseWhenIdle});
+  return toOffscreen({type: 'arm', channelNumber, streamId, tabId: tab.id, tabTitle: tab.title, tabUrl: tab.url, port, reloadOnWatch, idleAction, standbySeconds});
+}
+
+// Leaves the video page for the standby page, closing the site's player.
+// Returns the page's current address when Chrome lets us read it (it does on
+// sites where Play/Pause permission was given), so we can go back to exactly
+// where it was.
+async function standbyTab(tabId, channelNumber) {
+  let url = null;
+  try { const tab = await chrome.tabs.get(tabId); if (/^https?:/.test(tab.url ?? '')) url = tab.url; } catch { /* keep the address saved at broadcast time */ }
+  await chrome.tabs.update(tabId, {url: chrome.runtime.getURL(`standby.html?channel=${encodeURIComponent(channelNumber ?? '1')}`)});
+  return {ok: true, url};
+}
+
+async function returnTab(tabId, url) {
+  if (!/^https?:\/\//.test(url ?? '')) throw new Error('No web page to go back to.');
+  await chrome.tabs.update(tabId, {url});
+  return {ok: true};
 }
 
 async function command(message) {
@@ -114,7 +139,8 @@ async function command(message) {
     case 'saveSettings': {
       const update = {};
       if (typeof message.reloadOnWatch === 'boolean') update.reloadOnWatch = message.reloadOnWatch;
-      if (typeof message.pauseWhenIdle === 'boolean') update.pauseWhenIdle = message.pauseWhenIdle;
+      if (IDLE_ACTIONS.includes(message.idleAction)) update.idleAction = message.idleAction;
+      if (STANDBY_SECONDS.includes(Number(message.standbySeconds))) update.standbySeconds = Number(message.standbySeconds);
       if (Number.isInteger(message.port) && message.port > 0 && message.port < 65536) update.port = message.port;
       await chrome.storage.local.set(update);
       if (await hasOffscreen()) await toOffscreen({type: 'settings', ...update});
@@ -127,6 +153,21 @@ async function command(message) {
       } catch (error) {
         return {ok: false, error: error.message};
       }
+    case 'standbyTab':
+      try {
+        return await standbyTab(message.tabId, message.channelNumber);
+      } catch (error) {
+        return {ok: false, error: error.message};
+      }
+    case 'returnTab':
+      try {
+        return await returnTab(message.tabId, message.url);
+      } catch (error) {
+        return {ok: false, error: error.message};
+      }
+    case 'leaveStandby':
+      if (!(await hasOffscreen())) return {state: 'idle'};
+      return toOffscreen({type: 'leaveStandby', channelNumber: message.channelNumber});
     case 'pauseVideo':
       try {
         return await pauseVideo(message.tabId);

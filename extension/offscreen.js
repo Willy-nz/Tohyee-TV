@@ -4,13 +4,16 @@
 //
 // Capture starts when the person clicks "Broadcast this tab" (Chrome requires
 // that click). After that, the tuner says when Plex starts and stops
-// watching. Capture continues across reloads of the tab, so the tab can be
-// refreshed when someone starts watching, and the video can be paused when
-// nobody is watching and played again when someone starts.
+// watching. Capture continues when the tab changes page (checked in
+// Chromium), so when nobody is watching the tab can leave the video page for a
+// standby page — closing the player, so the site stops counting it as one of
+// the account's streams — and go back when someone starts watching, without
+// another click.
 
 const RETRY_DELAYS = [1000, 2000, 5000, 10000];
 const PLAY_CHECKS_MS = [6000, 12000, 20000];   // after a reload
 const RESUME_CHECKS_MS = [300, 4000, 10000];   // after a pause, without reloading
+const IDLE_ACTIONS = ['standby', 'pause', 'none'];
 const MAX_UNSENT_BYTES = 32 * 1024 * 1024;
 const MIME_TYPES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 
@@ -22,7 +25,11 @@ const s = {
   tabTitle: '',
   port: 34500,
   reloadOnWatch: true,
-  pauseWhenIdle: true,
+  idleAction: 'standby',    // when nobody is watching: standby (leave the page) | pause | none
+  standbySeconds: 60,       // how long nobody must be watching before leaving the page
+  returnUrl: '',            // the video page to go back to
+  inStandby: false,
+  standbyTimer: null,
   stream: null,
   audioOut: null,
   ws: null,
@@ -37,7 +44,8 @@ const s = {
 
 function snapshot() {
   return {state: s.state, message: s.message, tabId: s.tabId, tabTitle: s.tabTitle, viewers: s.viewers, armed: s.armed,
-    reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle, port: s.port};
+    reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction, standbySeconds: s.standbySeconds,
+    inStandby: s.inStandby, returnUrl: s.inStandby ? s.returnUrl : '', port: s.port};
 }
 
 function toWorker(message) {
@@ -56,10 +64,13 @@ function send(message) {
 }
 
 // ---- Capture ---------------------------------------------------------------
-async function arm({streamId, tabId, tabTitle, port, reloadOnWatch, pauseWhenIdle = true}) {
+async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch, idleAction = 'standby', standbySeconds = 60}) {
   disarm('Switching to a new tab.', true);
   s.armed = true;
-  s.tabId = tabId; s.tabTitle = tabTitle ?? ''; s.port = port; s.reloadOnWatch = !!reloadOnWatch; s.pauseWhenIdle = !!pauseWhenIdle;
+  s.tabId = tabId; s.tabTitle = tabTitle ?? ''; s.port = port; s.reloadOnWatch = !!reloadOnWatch;
+  s.idleAction = IDLE_ACTIONS.includes(idleAction) ? idleAction : 'standby';
+  s.standbySeconds = Number(standbySeconds) > 0 ? Number(standbySeconds) : 60;
+  s.returnUrl = /^https?:/.test(tabUrl) ? tabUrl : '';
   set('starting', 'Starting tab capture…');
   try {
     const media = await navigator.mediaDevices.getUserMedia({
@@ -89,6 +100,10 @@ async function arm({streamId, tabId, tabTitle, port, reloadOnWatch, pauseWhenIdl
 
 function disarm(message = 'Not broadcasting.', quiet = false) {
   s.armed = false;
+  clearStandbyTimer();
+  // If the tab is on the standby page, give the person their video page back.
+  if (s.inStandby && s.tabId !== null && s.returnUrl) toWorker({type: 'returnTab', tabId: s.tabId, url: s.returnUrl});
+  s.inStandby = false;
   clearTimeout(s.retryTimer); s.retryTimer = null; s.retry = 0;
   clearPlayChecks();
   stopRecorder();
@@ -121,7 +136,7 @@ function connect() {
   ws.onopen = () => {
     if (s.ws !== ws) return;
     s.retry = 0;
-    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle}));
+    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction}));
     set('ready', 'Ready. Waiting for someone to watch Tohyee TV in Plex.');
   };
   ws.onmessage = event => {
@@ -198,26 +213,66 @@ function viewersChanged(count) {
   const started = s.viewers === 0 && count > 0 && s.playTimers.length === 0 && !s.wasWatching;
   s.viewers = count;
   if (count === 0) clearPlayChecks();
-  if (count > 0) s.wasWatching = true;
+  if (count > 0) { s.wasWatching = true; clearStandbyTimer(); }
   if (!started || s.tabId === null) return;
-  if (s.reloadOnWatch) refreshForViewer();
-  else if (s.pauseWhenIdle) resumeForViewer();
+  if (s.inStandby) returnFromStandby();
+  else if (s.reloadOnWatch) refreshForViewer();
+  else if (s.idleAction !== 'none') resumeForViewer();
 }
 
+const describeWait = seconds => seconds % 60 === 0 ? `${seconds / 60} minute${seconds === 60 ? '' : 's'}` : `${seconds} seconds`;
+
 // The tuner says this once nobody has been watching for a few seconds (so a
-// quick channel change in Plex doesn't pause the video).
+// quick channel change in Plex doesn't interrupt anything).
 async function nobodyWatching() {
   s.wasWatching = false;
   stopRecorder();
   clearPlayChecks();
-  if (!s.armed) return;
-  if (!s.pauseWhenIdle || s.tabId === null) { set('ready', 'Ready. Nobody is watching right now.'); return; }
+  clearStandbyTimer();
+  if (!s.armed || s.tabId === null) return;
+  if (s.inStandby) { set('ready', STANDBY_MESSAGE); return; }
+  if (s.idleAction === 'none') { set('ready', 'Ready. Nobody is watching right now.'); return; }
   const tabId = s.tabId;
   const result = await toWorker({type: 'pauseVideo', tabId});
-  if (s.tabId !== tabId || s.viewers > 0) return;
-  if (result?.paused) set('ready', 'Nobody is watching — paused the video. It will play again when someone starts watching.');
+  if (s.tabId !== tabId || s.viewers > 0 || !s.armed) return;
+  if (s.idleAction === 'standby') {
+    s.standbyTimer = setTimeout(() => enterStandby(tabId), s.standbySeconds * 1000);
+    set('ready', `Nobody is watching${result?.paused ? ' — paused the video' : ''}. Leaving the video page in ${describeWait(s.standbySeconds)} so it stops using one of your streams.`);
+  } else if (result?.paused) set('ready', 'Nobody is watching — paused the video. It will play again when someone starts watching.');
   else if (result?.permission === false) set('ready', 'Nobody is watching. Couldn’t pause the video: Tohyee TV wasn’t given permission on this site.');
   else set('ready', 'Nobody is watching. No video was found to pause.');
+}
+
+const STANDBY_MESSAGE = 'Standby — left the video page so it doesn’t use one of your streams. It goes back when someone watches in Plex.';
+
+async function enterStandby(tabId) {
+  s.standbyTimer = null;
+  if (s.tabId !== tabId || s.viewers > 0 || !s.armed || s.inStandby) return;
+  const result = await toWorker({type: 'standbyTab', tabId, channelNumber});
+  if (s.tabId !== tabId || !s.armed) return;
+  if (!result?.ok) { set('ready', `Nobody is watching, but the video page couldn’t be closed${result?.error ? `: ${result.error}` : ''}.`); return; }
+  if (/^https?:/.test(result.url ?? '')) s.returnUrl = result.url; // the page as it is now, if Chrome let us read it
+  s.inStandby = true;
+  set('ready', STANDBY_MESSAGE);
+  if (s.viewers > 0) returnFromStandby(); // someone started watching while we were leaving
+}
+
+async function returnFromStandby(manual = false) {
+  clearPlayChecks();
+  const tabId = s.tabId;
+  s.inStandby = false;
+  if (!s.returnUrl) { set(s.state, 'Couldn’t go back to the video page because its address wasn’t known. Open it again in the broadcast tab.'); return; }
+  const result = await toWorker({type: 'returnTab', tabId, url: s.returnUrl});
+  if (s.tabId !== tabId) return;
+  if (!result?.ok) { set(s.state, `Couldn’t go back to the video page${result?.error ? `: ${result.error}` : ''}.`); return; }
+  if (manual && s.viewers === 0) { set('ready', 'Back on the video page. Ready for Plex.'); return; }
+  set(s.state, 'Someone started watching — went back to the video page. Checking it plays…');
+  for (const ms of PLAY_CHECKS_MS) s.playTimers.push(setTimeout(() => checkPlaying(tabId, ms === PLAY_CHECKS_MS.at(-1)), ms));
+}
+
+function clearStandbyTimer() {
+  clearTimeout(s.standbyTimer);
+  s.standbyTimer = null;
 }
 
 function resumeForViewer() {
@@ -262,8 +317,12 @@ function clearPlayChecks() {
 
 return {arm,disarm,snapshot,settings(request){
  if ('reloadOnWatch' in request) s.reloadOnWatch=!!request.reloadOnWatch;
- if ('pauseWhenIdle' in request) s.pauseWhenIdle=!!request.pauseWhenIdle;
-},title(request){if(request.tabId===s.tabId){s.tabTitle=request.title??'';send({type:'status',tabTitle:s.tabTitle});}}};
+ if (IDLE_ACTIONS.includes(request.idleAction)) { s.idleAction=request.idleAction; if (s.idleAction!=='standby') clearStandbyTimer(); }
+ if (Number(request.standbySeconds) > 0) s.standbySeconds=Number(request.standbySeconds);
+},
+// The standby page's own title isn't the programme's, so keep the last real one.
+title(request){if(request.tabId===s.tabId&&!s.inStandby){s.tabTitle=request.title??'';send({type:'status',tabTitle:s.tabTitle});}},
+leaveStandby(){ if (s.inStandby) returnFromStandby(true); return snapshot(); }};
 }
 const captures = new Map();
 function capture(number='1') {if(!captures.has(number))captures.set(number,createCapture(number));return captures.get(number);}
@@ -286,5 +345,6 @@ chrome.runtime.onMessage.addListener((request,sender,respond)=>{
  else if(request.type==='tabClosed'){for(const x of captures.values())if(x.snapshot().tabId===request.tabId)x.disarm('The tab was closed.');respond({ok:true});}
  else if(request.type==='title'){for(const x of captures.values())x.title(request);respond(c.snapshot());}
  else if(request.type==='settings'){for(const x of captures.values())x.settings(request);respond(c.snapshot());}
+ else if(request.type==='leaveStandby')respond(c.leaveStandby());
  else respond({...c.snapshot(),captures:[...captures].map(([channelNumber,x])=>({channelNumber,...x.snapshot()}))});
 });
