@@ -1,4 +1,4 @@
-Windows x64 multi-channel test installer. FFmpeg and the runtime are included.
+Windows x64 installer for Tohyee TV: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
 
 - Add up to eight named channels in the Windows app, each with its own Plex stream and guide entry.
 - Assign a different Chrome tab to each channel using the extension’s channel dropdown.
@@ -18,4 +18,4 @@ Processing starts when Plex watches a channel. Paused website players may still 
 
 Automated tests cover isolated captures, channel routing, guide entries, concurrent media streams and packaged Windows startup. Actual Chrome/Plex playback, minimized capture and provider behaviour still require manual testing.
 
-Unsigned test build: Windows may show an unknown-publisher/SmartScreen warning. Bundled encoder licences and matching source archives are available from Settings.
+The installer isn't code-signed yet, so Windows may show an unknown-publisher/SmartScreen warning. Choose **More info → Run anyway** if you trust this download. Bundled encoder licences and matching source archives are available from Settings.
