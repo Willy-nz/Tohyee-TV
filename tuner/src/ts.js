@@ -36,6 +36,8 @@ export class TsTracker {
     this.pmt = null;
     this.pmtPid = -1;
     this.videoPid = -1;
+    this.videoFrames = 0;    // video frames seen so far
+    this.framesSinceKey = 0; // video frames since the last keyframe
   }
 
   // Returns a buffer of whole packets, keeping any partial packet for next time.
@@ -79,8 +81,14 @@ export class TsTracker {
             j += 5 + (((s.body[j + 3] & 0x0f) << 8) | s.body[j + 4]);
           }
         }
-      } else if (keyframe < 0 && info.pid === this.videoPid && info.start && info.randomAccess) {
-        keyframe = i;
+      } else if (info.pid === this.videoPid && info.start) {
+        this.videoFrames++;
+        if (info.randomAccess) {
+          this.framesSinceKey = 0;
+          if (keyframe < 0) keyframe = i;
+        } else {
+          this.framesSinceKey++;
+        }
       }
     }
     return keyframe;

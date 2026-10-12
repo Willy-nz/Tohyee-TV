@@ -4,11 +4,14 @@
 // A viewer that falls too far behind is disconnected so it can't hold up others.
 // Each new viewer starts at a video keyframe (with the program tables sent
 // first) so its picture starts cleanly instead of with a second of garbage.
+// It also watches how often keyframes arrive: if pictures keep coming but no
+// keyframe does for too long, `onKeyframeGap` is called so the caller can
+// switch to re-encoding (see restart()).
 
 import {TsTracker, PACKET} from './ts.js';
 
 export class Broadcaster {
-  constructor({spawnEncoder, idleStopMs = 5000, maxBufferedBytes = 8 * 1024 * 1024, keyframeWaitMs = 4000, log = () => {}, now = Date.now, onViewers = () => {}, onEncoderStop = () => {}}) {
+  constructor({spawnEncoder, idleStopMs = 5000, maxBufferedBytes = 8 * 1024 * 1024, keyframeWaitMs = 4000, log = () => {}, now = Date.now, onViewers = () => {}, onEncoderStop = () => {}, onKeyframeGap = null, maxKeyframeGapMs = 6000, minFramesForGap = 30}) {
     this.spawnEncoder = spawnEncoder;
     this.idleStopMs = idleStopMs;
     this.maxBufferedBytes = maxBufferedBytes;
@@ -17,6 +20,10 @@ export class Broadcaster {
     this.now = now;
     this.onViewers = onViewers;
     this.onEncoderStop = onEncoderStop;
+    this.onKeyframeGap = onKeyframeGap;
+    this.maxKeyframeGapMs = maxKeyframeGapMs;
+    this.minFramesForGap = minFramesForGap;
+    this.sessionStartedAt = 0;
     this.clients = new Set();
     this.waiting = new Map(); // client -> time it joined, until its first keyframe
     this.encoder = null;
@@ -51,17 +58,28 @@ export class Broadcaster {
     }
   }
 
-  start() {
-    const encoder = this.spawnEncoder();
+  // `options.tsOffset` continues an existing stream's clock (used by restart()).
+  start(options = {}) {
+    if (!options.tsOffset) this.sessionStartedAt = this.now();
+    const encoder = this.spawnEncoder(options);
     this.encoder = encoder;
     let stderrTail = '';
     this.log('Encoder started.');
     const tracker = new TsTracker();
+    let lastKeyframeAt = this.now();
+    let gapReported = false;
     encoder.stdout.on('data', chunk => {
       if (this.encoder !== encoder) return;
       const packets = tracker.align(chunk);
       if (!packets.length) return;
       const keyframe = tracker.scan(packets);
+      if (keyframe >= 0) lastKeyframeAt = this.now();
+      else if (this.onKeyframeGap && !gapReported && tracker.framesSinceKey >= this.minFramesForGap &&
+               this.now() - lastKeyframeAt > this.maxKeyframeGapMs) {
+        gapReported = true;
+        this.onKeyframeGap(this.now() - lastKeyframeAt);
+        if (this.encoder !== encoder) return; // the callback replaced the encoder
+      }
       for (const client of this.clients) {
         if (client.writableLength > this.maxBufferedBytes) {
           this.log('A viewer fell too far behind and was disconnected.');
@@ -96,6 +114,20 @@ export class Broadcaster {
       ? 'FFmpeg was not found — see the README for how to install it'
       : error.message));
     encoder.once('exit', (code, signal) => ended(signal ? `signal ${signal}` : `exit code ${code}`));
+  }
+
+  // Replaces the running encoder without disconnecting anyone: viewers wait
+  // for the new encoder's first keyframe (with fresh program tables), and its
+  // timestamps carry on from where the old one was rather than jumping back.
+  restart(reason) {
+    const old = this.encoder;
+    if (!old) return;
+    this.log(`Restarting the encoder (${reason}).`);
+    const tsOffset = Math.max(0, (this.now() - this.sessionStartedAt) / 1000) + 1;
+    this.encoder = null; // the old encoder's exit is now ignored
+    old.kill();
+    for (const client of this.clients) this.waiting.set(client, this.now());
+    this.start({tsOffset});
   }
 
   stop(reason = 'stopped') {

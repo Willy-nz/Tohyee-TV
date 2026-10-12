@@ -6,16 +6,23 @@ import {join} from 'node:path';
 
 // Output Plex can play as live TV: H.264 video + AAC audio in MPEG-TS,
 // with a keyframe every 2 seconds so a new viewer gets a picture quickly.
-export function outputArgs({fps = 30, videoBitrate = '4M'} = {}) {
+export function outputArgs({fps = 30, videoBitrate = '4M', tsOffset = 0} = {}) {
   return [
     '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency',
     '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-level', '4.1',
     '-g', String(fps * 2), '-keyint_min', String(fps * 2), '-sc_threshold', '0',
     '-b:v', videoBitrate, '-maxrate', videoBitrate, '-bufsize', '8M',
     '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2',
+    ...tsOffsetArgs(tsOffset),
     '-f', 'mpegts', '-mpegts_flags', '+resend_headers', '-muxdelay', '0', '-muxpreload', '0',
     'pipe:1'
   ];
+}
+
+// `tsOffset` (seconds) shifts output timestamps so a replacement encoder can
+// continue an existing stream without its clock jumping backwards.
+function tsOffsetArgs(tsOffset) {
+  return tsOffset > 0 ? ['-output_ts_offset', tsOffset.toFixed(3)] : [];
 }
 
 // Stage 1 source: a moving test picture with a frame counter and a 440 Hz
@@ -33,7 +40,7 @@ export function testPatternArgs({width = 1280, height = 720, fps = 30} = {}) {
 // Chrome's tab capture arrives as WebM (VP8/VP9/H.264 video, Opus audio) on
 // FFmpeg's standard input. Re-encode to a steady 30 fps (tab capture is
 // variable-rate), cap at 1080p, and keep audio in step with the video.
-export function chromeInputArgs({fps = 30, maxWidth = 1920, copyVideo = false} = {}) {
+export function chromeInputArgs({fps = 30, maxWidth = 1920, copyVideo = false, tsOffset = 0} = {}) {
   return [
     '-hide_banner', '-loglevel', 'warning',
     '-fflags', '+genpts+discardcorrupt', '-probesize', '2M', '-analyzeduration', '1500000',
@@ -41,7 +48,7 @@ export function chromeInputArgs({fps = 30, maxWidth = 1920, copyVideo = false} =
     '-map', '0:v:0', '-map', '0:a:0?',
     ...(copyVideo ? [] : ['-vf', `fps=${fps},scale='trunc(min(${maxWidth},iw)/2)*2':-2,format=yuv420p`]),
     '-af', 'aresample=async=1000:first_pts=0',
-    ...(copyVideo ? ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2', '-f', 'mpegts', '-mpegts_flags', '+resend_headers', '-muxdelay', '0', 'pipe:1'] : outputArgs({fps, videoBitrate: '6M'}))
+    ...(copyVideo ? ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2', ...tsOffsetArgs(tsOffset), '-f', 'mpegts', '-mpegts_flags', '+resend_headers', '-muxdelay', '0', 'pipe:1'] : outputArgs({fps, videoBitrate: '6M', tsOffset}))
   ];
 }
 

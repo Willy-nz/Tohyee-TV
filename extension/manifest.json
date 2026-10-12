@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tohyee TV",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "minimum_chrome_version": "116",
   "description": "Broadcast a Chrome tab's picture and sound to Plex through the Tohyee TV tuner on this computer.",
   "permissions": [

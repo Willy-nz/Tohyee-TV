@@ -15,7 +15,12 @@ const PLAY_CHECKS_MS = [6000, 12000, 20000];   // after a reload
 const RESUME_CHECKS_MS = [300, 4000, 10000];   // after a pause, without reloading
 const IDLE_ACTIONS = ['standby', 'pause', 'none'];
 const MAX_UNSENT_BYTES = 32 * 1024 * 1024;
+// H.264 first: the tuner can pass it straight to Plex without re-encoding.
 const MIME_TYPES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+// Ask for a keyframe every 2 seconds (milliseconds, per the MediaRecorder
+// spec). Plex needs regular keyframes to start and join the stream; if Chrome
+// doesn't honour this, the tuner notices and switches to compatibility encoding.
+const KEYFRAME_INTERVAL_MS = 2000;
 
 function createCapture(channelNumber) {
 const s = {
@@ -172,7 +177,7 @@ function startRecorder(session) {
   if (!mimeType) { set('error', 'Chrome has no supported video recorder.'); return; }
   let recorder;
   try {
-    recorder = new MediaRecorder(s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000});
+    recorder = new MediaRecorder(s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000, videoKeyFrameIntervalDuration: KEYFRAME_INTERVAL_MS});
   } catch (error) {
     set('error', `Could not start sending: ${error.message}`);
     return;

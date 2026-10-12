@@ -11,12 +11,22 @@ export async function startRuntime({config, ffmpeg, log = () => {}, testPattern 
   for (const channel of channelConfigs(config)) {
   const channelLog = text=>log(`[${channel.channelNumber} ${channel.channelName}] ${text}`);
   const source = testPattern ? null : new SourceHub({log:channelLog});
-  let forceEncode = config.videoMode === 'encode', mode = 'Waiting for source';
+  let forceEncode = config.videoMode === 'encode', mode = 'Waiting for source', copying = false;
   const broadcaster = new Broadcaster({log:channelLog,
     onViewers:count=>source?.setViewers(count), onEncoderStop:()=>source?.detach(),
-    spawnEncoder:()=>testPattern ? spawn(ffmpeg,testPatternArgs(),{stdio:['ignore','pipe','pipe'],windowsHide:true}) : sourceEncoder({
-      source,ffmpeg,compatibility:forceEncode,
-      onMode:value=>{mode=value;log(value);},
+    // Passthrough needs Chrome to send regular keyframes (the extension asks for
+    // one every 2 s). If pictures keep arriving without one, Plex can't start or
+    // join the stream cleanly: switch this channel to compatibility encoding,
+    // without disconnecting anyone (see Broadcaster.restart).
+    onKeyframeGap:ms=>{
+      if (!copying || testPattern) return;
+      forceEncode = true;
+      channelLog(`Chrome's video went ${Math.round(ms/1000)} seconds without a keyframe. Switching to compatibility encoding (uses more CPU).`);
+      broadcaster.restart('switching to compatibility encoding');
+    },
+    spawnEncoder:({tsOffset = 0} = {})=>testPattern ? spawn(ffmpeg,testPatternArgs(),{stdio:['ignore','pipe','pipe'],windowsHide:true}) : sourceEncoder({
+      source,ffmpeg,compatibility:forceEncode,tsOffset,
+      onMode:value=>{mode=value;copying=value.startsWith('Video passthrough');log(value);},
       onCopyFailure:()=>{forceEncode=true;log('Passthrough failed before playback. Next tune will use compatibility encoding.');}
     })
   });
