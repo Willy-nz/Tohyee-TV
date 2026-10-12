@@ -1,10 +1,10 @@
-Test build of Tohyee TV 0.6.0: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
+Windows x64 installer for Tohyee TV: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
 
 **New in 0.6.0 — standby frees your stream.** Services such as Sky Go limit how many devices can watch at once, and a paused video still counts. Now, when nobody is watching a channel in Plex, the extension pauses the video straight away and, after a set time (1 minute by default), moves the tab to a Tohyee TV standby page. That closes the site's player, the same as leaving the page yourself. When someone starts watching, it goes back to the same video page and presses Play — no need to click Broadcast again.
 
 Choose what happens in the extension under **When nobody is watching in Plex**: *Leave the video page* (default), *Pause the video*, or *Keep playing*, and how long to wait before leaving. Pressing Play and Pause needs the one-time site permission Chrome asks for.
 
-To try it: install this, reload the extension at `chrome://extensions` (it should show version **0.6.0**), broadcast your tab, watch in Plex, stop, and check another device can use Sky Go once the tab shows the standby page.
+After installing, reload the extension at `chrome://extensions` so it shows version **0.6.0**.
 
 How quickly a service frees the stream after the player closes is up to the service; some take a few minutes.
 
