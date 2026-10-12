@@ -14,6 +14,7 @@ const RESUME_CHECKS_MS = [300, 4000, 10000];   // after a pause, without reloadi
 const MAX_UNSENT_BYTES = 32 * 1024 * 1024;
 const MIME_TYPES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 
+function createCapture(channelNumber) {
 const s = {
   state: 'idle',            // idle | starting | connecting | ready | live | error
   message: 'Not broadcasting.',
@@ -35,7 +36,7 @@ const s = {
 };
 
 function snapshot() {
-  return {state: s.state, message: s.message, tabId: s.tabId, tabTitle: s.tabTitle, viewers: s.viewers,
+  return {state: s.state, message: s.message, tabId: s.tabId, tabTitle: s.tabTitle, viewers: s.viewers, armed: s.armed,
     reloadOnWatch: s.reloadOnWatch, pauseWhenIdle: s.pauseWhenIdle, port: s.port};
 }
 
@@ -46,7 +47,7 @@ function toWorker(message) {
 function set(state, message) {
   s.state = state;
   if (message !== undefined) s.message = message;
-  toWorker({type: 'badge', state});
+  updateBadge();
   send({type: 'status', state, message: s.message, tabTitle: s.tabTitle});
 }
 
@@ -81,7 +82,7 @@ async function arm({streamId, tabId, tabTitle, port, reloadOnWatch, pauseWhenIdl
   } catch (error) {
     disarm(`Could not capture this tab: ${error.message || error.name || 'unknown error'}`);
     s.state = 'error';
-    toWorker({type: 'badge', state: 'error'});
+    updateBadge();
   }
   return snapshot();
 }
@@ -98,9 +99,10 @@ function disarm(message = 'Not broadcasting.', quiet = false) {
   s.audioOut?.close().catch(() => {});
   s.audioOut = null;
   s.viewers = 0;
+  s.wasWatching = false;
   s.tabId = null;
   s.tabTitle = '';
-  if (!quiet) { s.state = 'idle'; s.message = message; toWorker({type: 'badge', state: 'idle'}); }
+  if (!quiet) { s.state = 'idle'; s.message = message; updateBadge(); }
   return snapshot();
 }
 
@@ -110,7 +112,7 @@ function connect() {
   set('connecting', `Looking for the Tohyee TV tuner on this computer (port ${s.port})…`);
   let ws;
   try {
-    ws = new WebSocket(`ws://127.0.0.1:${s.port}/source`);
+    ws = new WebSocket(`ws://127.0.0.1:${s.port}/source/${encodeURIComponent(channelNumber)}`);
   } catch (error) {
     set('error', `Can't connect to the tuner: ${error.message}`);
     return;
@@ -126,7 +128,8 @@ function connect() {
     if (s.ws !== ws || typeof event.data !== 'string') return;
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
-    if (message.type === 'start') startRecorder(message.session);
+    if (message.type === 'shutdown') disarm('Stopped from the Windows app.');
+    else if (message.type === 'start') startRecorder(message.session);
     else if (message.type === 'stop') nobodyWatching();
     else if (message.type === 'viewers') viewersChanged(Number(message.count) || 0);
   };
@@ -136,11 +139,12 @@ function connect() {
     stopRecorder();
     clearPlayChecks();
     s.viewers = 0;
+    s.wasWatching = false;
     if (!s.armed) return;
     const delay = RETRY_DELAYS[Math.min(s.retry++, RETRY_DELAYS.length - 1)];
     s.state = 'connecting';
     s.message = 'Can’t reach the Tohyee TV tuner. Make sure “Start Tohyee TV Tuner” is running on this computer. Retrying…';
-    toWorker({type: 'badge', state: 'connecting'});
+    updateBadge();
     s.retryTimer = setTimeout(connect, delay);
   };
 }
@@ -164,16 +168,21 @@ function startRecorder(session) {
   recorder.ondataavailable = event => {
     if (s.recorder !== recorder || !event.data.size || ws.readyState !== 1) return;
     if (ws.bufferedAmount > MAX_UNSENT_BYTES) {
-      stopRecorder();
-      set('error', 'The connection to the tuner fell behind. It will restart when Plex retries.');
+      failStream('The connection fell behind. Reconnecting to the tuner…');
       return;
     }
     ws.send(event.data);
   };
-  recorder.onerror = () => { if (s.recorder === recorder) { stopRecorder(); set('error', 'Recording failed.'); } };
+  recorder.onerror = () => { if (s.recorder === recorder) failStream('Recording failed. Reconnecting to the tuner…'); };
   ws.send(JSON.stringify({type: 'session', session, mimeType}));
   recorder.start(250);
   set('live', 'LIVE — sending this tab to Plex.');
+}
+
+function failStream(message) {
+  stopRecorder();
+  set('error', message);
+  s.ws?.close(1011, 'Media stopped');
 }
 
 function stopRecorder() {
@@ -186,9 +195,10 @@ function stopRecorder() {
 
 // ---- When someone starts or stops watching --------------------------------
 function viewersChanged(count) {
-  const started = s.viewers === 0 && count > 0;
+  const started = s.viewers === 0 && count > 0 && s.playTimers.length === 0 && !s.wasWatching;
   s.viewers = count;
   if (count === 0) clearPlayChecks();
+  if (count > 0) s.wasWatching = true;
   if (!started || s.tabId === null) return;
   if (s.reloadOnWatch) refreshForViewer();
   else if (s.pauseWhenIdle) resumeForViewer();
@@ -197,6 +207,7 @@ function viewersChanged(count) {
 // The tuner says this once nobody has been watching for a few seconds (so a
 // quick channel change in Plex doesn't pause the video).
 async function nobodyWatching() {
+  s.wasWatching = false;
   stopRecorder();
   clearPlayChecks();
   if (!s.armed) return;
@@ -249,15 +260,31 @@ function clearPlayChecks() {
   s.playTimers = [];
 }
 
-// ---- Messages from the service worker -------------------------------------
-chrome.runtime.onMessage.addListener((request, sender, respond) => {
-  if (request.target !== 'offscreen' || sender.id !== chrome.runtime.id) return;
-  if (request.type === 'arm') { arm(request).then(respond, error => respond({error: error.message})); return true; }
-  if (request.type === 'disarm') respond(disarm(request.message));
-  else if (request.type === 'title') { if (request.tabId === s.tabId) { s.tabTitle = request.title ?? ''; send({type: 'status', state: s.state, message: s.message, tabTitle: s.tabTitle}); } respond(snapshot()); }
-  else if (request.type === 'settings') {
-    if ('reloadOnWatch' in request) s.reloadOnWatch = !!request.reloadOnWatch;
-    if ('pauseWhenIdle' in request) s.pauseWhenIdle = !!request.pauseWhenIdle;
-    respond(snapshot());
-  } else respond(snapshot());
+return {arm,disarm,snapshot,settings(request){
+ if ('reloadOnWatch' in request) s.reloadOnWatch=!!request.reloadOnWatch;
+ if ('pauseWhenIdle' in request) s.pauseWhenIdle=!!request.pauseWhenIdle;
+},title(request){if(request.tabId===s.tabId){s.tabTitle=request.title??'';send({type:'status',tabTitle:s.tabTitle});}}};
+}
+const captures = new Map();
+function capture(number='1') {if(!captures.has(number))captures.set(number,createCapture(number));return captures.get(number);}
+function updateBadge(){
+ const all=[...captures.values()].map(c=>c.snapshot());
+ const state=['live','error','connecting','starting','ready'].find(state=>all.some(c=>c.state===state))??'idle';
+ chrome.runtime.sendMessage({target:'worker',type:'badge',state}).catch(()=>{});
+}
+chrome.runtime.onMessage.addListener((request,sender,respond)=>{
+ if(request.target!=='offscreen'||sender.id!==chrome.runtime.id)return;
+ const number=String(request.channelNumber??'1');
+ const c=capture(number);
+ if(request.type==='arm') {
+   const duplicate=[...captures].find(([id,x])=>id!==number&&x.snapshot().armed&&x.snapshot().tabId===request.tabId);
+   if(duplicate){respond({error:`This tab is already assigned to channel ${duplicate[0]}. Stop that channel first.`});return;}
+   c.arm(request).then(respond,e=>respond({error:e.message}));return true;
+ }
+ if(request.type==='disarm')respond(c.disarm(request.message));
+ else if(request.type==='disarmAll'){for(const x of captures.values())x.disarm(request.message);respond({ok:true});}
+ else if(request.type==='tabClosed'){for(const x of captures.values())if(x.snapshot().tabId===request.tabId)x.disarm('The tab was closed.');respond({ok:true});}
+ else if(request.type==='title'){for(const x of captures.values())x.title(request);respond(c.snapshot());}
+ else if(request.type==='settings'){for(const x of captures.values())x.settings(request);respond(c.snapshot());}
+ else respond({...c.snapshot(),captures:[...captures].map(([channelNumber,x])=>({channelNumber,...x.snapshot()}))});
 });

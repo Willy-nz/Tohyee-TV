@@ -1,0 +1,94 @@
+name: Windows installer
+on:
+  push:
+    branches: [main]
+    paths: [desktop/package.json, .github/workflows/windows-installer.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-installer-release
+  cancel-in-progress: true
+jobs:
+  encoder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools
+        run: sudo apt-get update -qq && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 make pkg-config
+      - name: Build bundled encoder with corresponding sources
+        run: bash scripts/build-ffmpeg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundled-ffmpeg
+          path: vendor/ffmpeg/
+  installer:
+    needs: encoder
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundled-ffmpeg
+          path: vendor/ffmpeg
+      - name: Test source and bundled media pipeline
+        shell: pwsh
+        run: |
+          node --test
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          node scripts/smoke-media.mjs vendor/ffmpeg/ffmpeg.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Media smoke tests failed' }
+          node scripts/smoke-channels.mjs vendor/ffmpeg/ffmpeg.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Multi-channel smoke tests failed' }
+      - name: Install desktop build dependencies
+        working-directory: desktop
+        run: npm ci
+      - name: Build installer
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist
+      - name: Verify packaged resources and launch
+        shell: pwsh
+        run: |
+          $root = 'dist/win-unpacked'
+          foreach ($file in @('Tohyee TV.exe','resources/ffmpeg/ffmpeg.exe','resources/ffmpeg/Corresponding-Source.tar.gz','resources/extension/manifest.json','resources/tuner/src/runtime.js')) {
+            if (-not (Test-Path "$root/$file")) { throw "Missing $file" }
+          }
+          $p = Start-Process "$root/Tohyee TV.exe" -PassThru
+          try {
+            $ready = $false
+            for ($i=0; $i -lt 20; $i++) {
+              Start-Sleep -Seconds 1
+              try { $d = Invoke-RestMethod http://127.0.0.1:34500/discover.json; $ready = $true; break } catch {}
+              if ($p.HasExited) { throw 'Desktop app exited early' }
+            }
+            if (-not $ready) { throw 'Desktop tuner did not start' }
+            if ($d.FriendlyName -ne 'Tohyee TV') { throw 'Unexpected tuner response' }
+          } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+      - name: Publish Windows installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+          $exe = Get-ChildItem dist -Filter '*.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'Installer missing' }
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+          "$hash  $($exe.Name)" | Set-Content dist/SHA256SUMS.txt
+          $notes = Get-Content desktop/RELEASE_NOTES.md -Raw
+          gh release view "v$v" 2>$null
+          if ($LASTEXITCODE -eq 0) { throw 'Version already published. Bump the version rather than overwrite it.' }
+          # Versions with a suffix (e.g. 0.6.0-alpha.1) are published as test releases.
+          $pre = if ($v -match '-') { @('--prerelease') } else { @('--latest') }
+          gh release create "v$v" $exe.FullName dist/SHA256SUMS.txt --target "$env:GITHUB_SHA" --title "Tohyee TV $v — Windows installer" --notes "$notes" @pre
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

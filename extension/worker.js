@@ -86,27 +86,31 @@ async function ensurePlaying(tabId) {
   return {playing: found.length > 0 && found[0].playing, found: found.length > 0};
 }
 
-async function broadcast() {
+async function broadcast(channelNumber) {
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   if (!tab?.id || !/^https?:/.test(tab.url ?? '')) throw new Error('Open the website tab you want to broadcast, then click Tohyee TV there.');
   const {port, reloadOnWatch, pauseWhenIdle} = await settings();
   await ensureOffscreen();
   const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId: tab.id});
-  await chrome.storage.session.set({broadcastTabId: tab.id});
-  return toOffscreen({type: 'arm', streamId, tabId: tab.id, tabTitle: tab.title, port, reloadOnWatch, pauseWhenIdle});
+  return toOffscreen({type: 'arm', channelNumber, streamId, tabId: tab.id, tabTitle: tab.title, port, reloadOnWatch, pauseWhenIdle});
 }
 
 async function command(message) {
   switch (message.type) {
+    case 'channels': {
+      const {port}=await settings();
+      const response=await fetch(`http://127.0.0.1:${port}/channels.json`,{signal:AbortSignal.timeout(3000)});
+      if(!response.ok)throw new Error('Could not load channels');
+      return response.json();
+    }
     case 'badge':
       await setBadge(message.state);
       return {ok: true};
     case 'broadcast':
-      return broadcast();
+      return broadcast(String(message.channelNumber??'1'));
     case 'stop':
-      await chrome.storage.session.remove('broadcastTabId');
       if (!(await hasOffscreen())) return {state: 'idle', message: 'Not broadcasting.'};
-      return toOffscreen({type: 'disarm', message: 'Broadcast stopped.'});
+      return toOffscreen({type: 'disarm', channelNumber:message.channelNumber, message: 'Broadcast stopped.'});
     case 'saveSettings': {
       const update = {};
       if (typeof message.reloadOnWatch === 'boolean') update.reloadOnWatch = message.reloadOnWatch;
@@ -139,7 +143,7 @@ async function command(message) {
     default: {
       const saved = await settings();
       if (!(await hasOffscreen())) return {state: 'idle', message: 'Not broadcasting.', ...saved};
-      return {...saved, ...(await toOffscreen({type: 'status'}))};
+      return {...saved, ...(await toOffscreen({type: 'status',channelNumber:message.channelNumber}))};
     }
   }
 }
@@ -150,15 +154,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   return true;
 });
 
-// Keep the shown title current, and stop cleanly if the tab is closed.
-chrome.tabs.onUpdated.addListener(async (tabId, info) => {
-  if (!info.title) return;
-  const {broadcastTabId} = await chrome.storage.session.get('broadcastTabId');
-  if (tabId === broadcastTabId && await hasOffscreen()) toOffscreen({type: 'title', tabId, title: info.title}).catch(() => {});
+chrome.tabs.onUpdated.addListener(async(tabId,info)=>{
+ if(info.title && await hasOffscreen())toOffscreen({type:'title',tabId,title:info.title}).catch(()=>{});
 });
-chrome.tabs.onRemoved.addListener(async tabId => {
-  const {broadcastTabId} = await chrome.storage.session.get('broadcastTabId');
-  if (tabId !== broadcastTabId) return;
-  await chrome.storage.session.remove('broadcastTabId');
-  if (await hasOffscreen()) toOffscreen({type: 'disarm', message: 'Broadcast stopped: the tab was closed.'}).catch(() => {});
+chrome.tabs.onRemoved.addListener(async tabId=>{
+ if(await hasOffscreen())toOffscreen({type:'tabClosed',tabId}).catch(()=>{});
 });

@@ -5,12 +5,12 @@ const LABELS = {
 };
 let busy = false;
 
-const send = message => chrome.runtime.sendMessage({target: 'worker', ...message});
+const send = message => chrome.runtime.sendMessage({target: 'worker',channelNumber:el('channel').value||'1', ...message});
 
 function render(data) {
   if (!data) return;
   if (data.error) { el('message').textContent = data.error; return; }
-  const active = ['starting', 'connecting', 'ready', 'live'].includes(data.state);
+  const active = data.armed || ['starting', 'connecting', 'ready', 'live'].includes(data.state);
   el('status').textContent = LABELS[data.state] ?? data.state;
   el('status').className = data.state === 'live' ? 'live' : data.state === 'ready' ? 'ready' : data.state === 'error' ? 'error' : '';
   el('message').textContent = data.message ?? '';
@@ -69,6 +69,9 @@ el('save').addEventListener('click', async () => {
   el('message').textContent = 'Saved. Applies the next time you start broadcasting.';
 });
 
-poll();
+async function loadChannels(){try{const channels=await send({type:'channels'});if(!Array.isArray(channels))throw new Error(channels.error||'No channels');const old=el('channel').value;el('channel').replaceChildren(...channels.map(c=>new Option(`${c.channelNumber} — ${c.channelName}`,c.channelNumber)));if(channels.some(c=>c.channelNumber===old))el('channel').value=old;poll();}catch(e){el('message').textContent='Open Tohyee TV, then click Refresh channels. '+e.message;}}
+el('channel').addEventListener('change',poll);
+el('refreshChannels').addEventListener('click',loadChannels);
+loadChannels();
 const timer = setInterval(poll, 1000);
 window.addEventListener('pagehide', () => clearInterval(timer));
