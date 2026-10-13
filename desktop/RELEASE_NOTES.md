@@ -6,6 +6,8 @@ Test build of Tohyee TV 0.6.1: broadcast Chrome tabs to Plex as live TV channels
 
 **Fixed in 0.6.1 — standby with several channels.** Standby used to start only after someone had watched a channel and stopped. A channel you broadcast but nobody watched stayed on the video page and kept using one of your streams. Now every channel nobody is watching leaves the video page after the standby time, whether or not it has been watched yet, while your other channels keep playing.
 
+**0.6.1-alpha.5** is the same as alpha.4. It exists so you can try **Update now**: install alpha.4, then update to this one from the app.
+
 After installing, reload the extension at `chrome://extensions` so it shows version **0.6.1**.
 
 ---
