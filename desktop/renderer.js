@@ -1,13 +1,13 @@
 const $=id=>document.getElementById(id);let state={},busy=false,editorLoaded=false;
 function page(name){document.querySelectorAll('.page').forEach(p=>p.hidden=p.id!==name);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('selected',b.dataset.page===name));window.scrollTo(0,0);}
 function addresses(){const host=$('host').value||'127.0.0.1';$('tunerAddress').textContent=`http://${host}:${state.port}`;$('guideAddress').textContent=`http://${host}:${state.port}/guide.xml`;}
-function render(s){state=s;$('version').textContent=`Version ${s.version} · Windows test build`;
+function render(s){state=s;$('version').textContent=`Version ${s.version}${/-/.test(s.version)?' · test build':''}`;renderUpdates(s);
  $('notice').hidden=!s.problem;if(s.problem)$('notice').textContent=s.problem;
  $('status').textContent=!s.running?'Tuner stopped':s.connections?'● LIVE · Sending to Plex':s.source?.connected?'Ready · Waiting for Plex':'Not broadcasting';$('status').classList.toggle('live',!!s.connections);
  $('source').textContent=s.mode==='test'?'Built-in test picture':`${s.channels?.length||1} channel(s) configured`;renderChannelStatus(s);if(!editorLoaded){editChannels(s.configuredChannels);editorLoaded=true;}
  $('detail').textContent=s.source?.message||'Open the Chrome extension on your chosen tab to begin.';
  $('connections').textContent=s.connections||0;$('encoding').textContent=s.encoding||'Waiting';$('logs').textContent=s.logs.join('\n');
- if(!busy){$('startup').checked=s.startup;$('lan').checked=s.lan;$('videoMode').value=s.videoMode;}
+ if(!busy){$('startup').checked=s.startup;$('lan').checked=s.lan;$('videoMode').value=s.videoMode;$('updateChecks').checked=s.updateChecks;$('testBuilds').checked=s.testBuilds;}
  const hosts=s.lan?s.addresses:['127.0.0.1'];if(!hosts.length)hosts.push('127.0.0.1');const old=$('host').value;
  if(JSON.stringify([...$('host').options].map(o=>o.value))!==JSON.stringify(hosts)){$('host').replaceChildren(...hosts.map(h=>new Option(h,h)));if(hosts.includes(old))$('host').value=old;}
  addresses();
@@ -15,7 +15,7 @@ function render(s){state=s;$('version').textContent=`Version ${s.version} · Win
 async function action(name,value){if(busy)return;busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{render(await window.tohyee.action(name,value));}catch(e){$('notice').hidden=false;$('notice').textContent=e.message;}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
 document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
-$('startup').addEventListener('change',()=>action('startup',$('startup').checked));$('lan').addEventListener('change',()=>action('network',$('lan').checked));$('videoMode').addEventListener('change',()=>action('encoding',$('videoMode').value));$('host').addEventListener('change',addresses);
+$('startup').addEventListener('change',()=>action('startup',$('startup').checked));$('lan').addEventListener('change',()=>action('network',$('lan').checked));$('videoMode').addEventListener('change',()=>action('encoding',$('videoMode').value));$('host').addEventListener('change',addresses);$('updateChecks').addEventListener('change',()=>action('updateChecks',$('updateChecks').checked));$('testBuilds').addEventListener('change',()=>action('testBuilds',$('testBuilds').checked));
 $('copyTuner').addEventListener('click',()=>action('copy',{host:$('host').value,guide:false}));$('copyGuide').addEventListener('click',()=>action('copy',{host:$('host').value,guide:true}));
 async function poll(){if(!busy)try{render(await window.tohyee.status());}catch(e){$('notice').hidden=false;$('notice').textContent=e.message;}}
 poll();setInterval(poll,1000);
@@ -28,3 +28,13 @@ function addChannelRow(c){const row=document.createElement('div');row.className=
 function editChannels(channels){$('channelEditor').replaceChildren();for(const c of channels??[])addChannelRow(c);}
 $('addChannel').onclick=()=>{const rows=[...$('channelEditor').children];if(rows.length>=8){$('channelSaveStatus').textContent='Maximum eight channels.';return;}const used=rows.map(r=>r.querySelector('input').value);let n=1;while(used.includes(String(n)))n++;addChannelRow({channelNumber:String(n),channelName:`Channel ${n}`});};
 $('saveChannels').onclick=async()=>{const channels=[...$('channelEditor').children].map(row=>{const c=Object.fromEntries([...row.querySelectorAll('input')].map(i=>[i.dataset.key,i.value.trim()]));return {...c,programmeTitle:c.channelName};});await action('channels',channels);$('channelSaveStatus').textContent=JSON.stringify(state.configuredChannels)===JSON.stringify(channels)?'Saved. Reconnect each Chrome tab and rescan channels in Plex.':'Not saved. Check the error above.';};
+
+function renderUpdates(s){
+ const u=s.update||{status:'idle'};
+ $('updateBanner').hidden=u.status!=='available';
+ if(u.status==='available')$('updateText').textContent=`Tohyee TV ${u.update.version}${u.update.prerelease?' (test build)':''} is available. You have ${s.version}.`;
+ $('upgradeBanner').hidden=!s.upgradedFrom;
+ if(s.upgradedFrom)$('upgradeText').textContent=`Updated from ${s.upgradedFrom} to ${s.version}. Reload the Tohyee TV extension at chrome://extensions (click its reload arrow) so Chrome uses the new version.`;
+ const when=u.checkedAt?` Last checked ${new Date(u.checkedAt).toLocaleString()}.`:'';
+ $('updateStatus').textContent={idle:'Not checked yet.',checking:'Checking…',current:`You have the latest version.${when}`,available:`Version ${u.update?.version} is available.${when}`,error:`Couldn’t check: ${u.message}${when}`}[u.status]||'';
+}

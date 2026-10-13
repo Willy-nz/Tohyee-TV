@@ -13,6 +13,7 @@
 - **Standby frees your stream** (new in 0.6.0). Many services limit how many devices can watch at once, and a paused video still counts. When nobody is watching, the extension pauses the video, then after a set time (1 minute by default) moves the tab to a standby page, which closes the site's player. When someone starts watching, it goes back to the same page and presses Play. Choose *Leave the video page*, *Pause the video* or *Keep playing* in the extension.
 - **Light on your PC.** When Chrome already sends H.264, the picture is passed straight through instead of being compressed again; only the sound is converted. Other formats use the bundled encoder.
 - **Stays at home.** Runs on your computer and home network: no accounts, no cloud, no router changes.
+- **Tells you about new versions.** The app checks GitHub when it starts and once a day, and shows a notification with a download link (Settings → Updates). It never installs anything by itself.
 
 ## Quick start
 

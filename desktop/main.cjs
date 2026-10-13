@@ -1,16 +1,40 @@
 const {app,BrowserWindow,Tray,Menu,ipcMain,shell,clipboard,Notification,powerMonitor} = require('electron');
 const fs = require('node:fs'); const path = require('node:path'); const {pathToFileURL} = require('node:url');
 const {networkInterfaces} = require('node:os');
+const updates = require('./updates.cjs');
 let win,tray,indicator,runtime,config,configPath,prefs,prefsPath,quitting=false,closing=false;
 const logs=[]; let lastLive=false, problem='', mode='chrome', changing=false;
+// Update check state: status idle | checking | available | current | error
+let update={status:'idle'}, upgradedFrom='';
+const DAY=24*60*60*1000;
 const resources = app.isPackaged ? process.resourcesPath : path.resolve(__dirname,'..');
 const icon = path.join(resources,'extension','spitz-32.png');
 const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),...runtime?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,updateChecks:prefs.updateChecks!==false,testBuilds:!!prefs.testBuilds,upgradedFrom,...runtime?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
+function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
+// Checks GitHub for a newer installer. Automatic checks tell the person once
+// per new version (a notification they can click); manual checks always report.
+async function checkUpdates(manual=false){
+  if(update.status==='checking')return;
+  if(!manual&&prefs.updateChecks===false)return;
+  update={...update,status:'checking'};
+  const result=await updates.checkForUpdate({current:app.getVersion(),includeTest:!!prefs.testBuilds});
+  update={...result,checkedAt:new Date().toISOString()};
+  if(result.status==='available'){
+    log(`Tohyee TV ${result.update.version} is available.`);
+    if(prefs.lastNotifiedVersion!==result.update.version&&Notification.isSupported()){
+      const note=new Notification({title:`Tohyee TV ${result.update.version} is available`,body:'Click to open the download page.',icon});
+      note.on('click',()=>shell.openExternal(result.update.url));note.show();
+      prefs.lastNotifiedVersion=result.update.version;savePrefs();
+    }
+  } else if(result.status==='error'&&manual) log(`Update check: ${result.message}`);
+  refreshTray();
+}
+function openUpdate(){if(update.status==='available'&&updates.isReleasePage(update.update.url))return shell.openExternal(update.update.url);}
 function notify(title,body){if(Notification.isSupported())new Notification({title,body,icon}).show();}
 function refreshTray(){
   const s=runtime?.status();const live=!!s?.connections;
@@ -20,6 +44,7 @@ function refreshTray(){
     {label:live?'LIVE — sending to Plex':active?'Ready — waiting for Plex':'Not broadcasting',enabled:false},
     {label:'Open Tohyee TV',click:show},
     {label:'Stop broadcasting',enabled:!!runtime,click:()=>runtime.stopBroadcast()},
+    ...(update.status==='available'?[{type:'separator'},{label:`Update available: ${update.update.version} — Download`,click:openUpdate}]:[]),
     {type:'separator'},{label:'Quit Tohyee TV',click:()=>app.quit()}
   ]));
   if(live){indicator.showInactive();if(!lastLive)notify('Tohyee TV is broadcasting','The selected source is being sent to Plex. Use Stop to end it.');}
@@ -67,6 +92,11 @@ ipcMain.handle('action',async(event,name,value)=>{
       clipboard.writeText(`http://${value.host}:${config.port}${value.guide?'/guide.xml':''}`);break;
     }
     case 'licences':await shell.openPath(path.join(resources,'ffmpeg'));break;
+    case 'checkUpdates':await checkUpdates(true);break;
+    case 'openUpdate':await openUpdate();break;
+    case 'updateChecks':prefs.updateChecks=!!value;if(prefs.updateChecks)checkUpdates();break;
+    case 'testBuilds':prefs.testBuilds=!!value;await checkUpdates(true);break;
+    case 'dismissUpgrade':upgradedFrom='';break;
     default:throw new Error('Unknown action');
   }
   fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));refreshTray();return snapshot();
@@ -82,6 +112,10 @@ else {
     app.setAppUserModelId('nz.tohyee.tv');
     prefsPath=path.join(app.getPath('userData'),'desktop.json');
     try{prefs=JSON.parse(fs.readFileSync(prefsPath,'utf8'));}catch{prefs={lan:false,startup:false};}
+    // After an upgrade, remind the person to reload the Chrome extension (Chrome
+    // keeps running the old copy until they do). Not shown on a fresh install.
+    if(prefs.lastRunVersion&&prefs.lastRunVersion!==app.getVersion())upgradedFrom=prefs.lastRunVersion;
+    prefs.lastRunVersion=app.getVersion();fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));
     const {loadConfig}=await import(pathToFileURL(path.join(resources,'tuner/src/config.js')).href);
     configPath=path.join(app.getPath('userData'),'tuner.json');
     config=loadConfig(configPath);config.listenAddress=prefs.lan?'0.0.0.0':'127.0.0.1';
@@ -95,6 +129,8 @@ else {
     indicator.on('close',event=>{if(!quitting){event.preventDefault();indicator.hide();}});
     tray=new Tray(icon);tray.on('double-click',show);
     await start();refreshTray();setInterval(refreshTray,1000).unref();
+    if(upgradedFrom)notify(`Tohyee TV updated to ${app.getVersion()}`,'Reload the Tohyee TV extension at chrome://extensions so Chrome uses the new version.');
+    setTimeout(()=>checkUpdates(),10000).unref();setInterval(()=>checkUpdates(),DAY).unref();
     powerMonitor.on('lock-screen',()=>runtime?.stopBroadcast());
     powerMonitor.on('suspend',()=>runtime?.stopBroadcast());
     if(!process.argv.includes('--hidden')||problem)show();
