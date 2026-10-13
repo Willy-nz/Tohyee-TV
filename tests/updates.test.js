@@ -3,12 +3,18 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
 const require = createRequire(import.meta.url);
-const {compareVersions, pickUpdate, checkForUpdate, isReleasePage} = require('../desktop/updates.cjs');
+const {compareVersions, pickUpdate, checkForUpdate, isReleasePage, checksumFor, downloadUpdate, INSTALL_ARGS} = require('../desktop/updates.cjs');
+import crypto from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
 
 const rel = (tag, extra = {}) => ({
   tag_name: tag, name: `Tohyee TV ${tag.slice(1)}`, draft: false, prerelease: /-/.test(tag),
   html_url: `https://github.com/Willy-nz/Tohyee-TV/releases/tag/${tag}`,
-  assets: [{name: `Tohyee-TV-Setup-${tag.slice(1)}.exe`}, {name: 'SHA256SUMS.txt'}], ...extra
+  assets: [
+    {name: `Tohyee-TV-Setup-${tag.slice(1)}.exe`, size: 1000, browser_download_url: `https://github.com/Willy-nz/Tohyee-TV/releases/download/${tag}/Tohyee-TV-Setup-${tag.slice(1)}.exe`},
+    {name: 'SHA256SUMS.txt', browser_download_url: `https://github.com/Willy-nz/Tohyee-TV/releases/download/${tag}/SHA256SUMS.txt`}
+  ], ...extra
 });
 
 test('Versions are ordered properly, test builds before the full release', () => {
@@ -42,7 +48,9 @@ test('Releases without a Windows installer, drafts, odd tags and outside links a
 
 test('The newest qualifying release wins, with its page and name', () => {
   const u = pickUpdate([rel('v0.6.2'), rel('v0.7.0'), rel('v0.6.1')], '0.6.0');
-  assert.deepEqual(u, {version: '0.7.0', name: 'Tohyee TV 0.7.0', url: 'https://github.com/Willy-nz/Tohyee-TV/releases/tag/v0.7.0', prerelease: false});
+  assert.deepEqual(u, {version: '0.7.0', name: 'Tohyee TV 0.7.0', url: 'https://github.com/Willy-nz/Tohyee-TV/releases/tag/v0.7.0', prerelease: false,
+    installer: {name: 'Tohyee-TV-Setup-0.7.0.exe', url: 'https://github.com/Willy-nz/Tohyee-TV/releases/download/v0.7.0/Tohyee-TV-Setup-0.7.0.exe', size: 1000,
+      sums: 'https://github.com/Willy-nz/Tohyee-TV/releases/download/v0.7.0/SHA256SUMS.txt'}});
 });
 
 test('Checking reports available, up to date, rate limits and connection problems', async () => {
@@ -72,12 +80,73 @@ test('Only this project’s release pages can be opened', () => {
 
 test('The app wires up the checker, its settings and the upgrade reminder', () => {
   const main = fs.readFileSync(new URL('../desktop/main.cjs', import.meta.url), 'utf8');
-  for (const action of ['checkUpdates', 'openUpdate', 'updateChecks', 'testBuilds', 'dismissUpgrade']) assert.match(main, new RegExp(`case '${action}'`));
+  for (const action of ['checkUpdates', 'openUpdate', 'installUpdate', 'updateChecks', 'testBuilds', 'dismissUpgrade']) assert.match(main, new RegExp(`case '${action}'`));
   assert.match(main, /setTimeout\(\(\)=>checkUpdates\(\),10000\)/, 'checks shortly after starting');
   assert.match(main, /setInterval\(\(\)=>checkUpdates\(\),DAY\)/, 'and once a day');
   assert.match(main, /prefs\.lastNotifiedVersion!==result\.update\.version/, 'notifies once per new version');
   const html = fs.readFileSync(new URL('../desktop/index.html', import.meta.url), 'utf8');
-  for (const id of ['updateBanner', 'upgradeBanner', 'updateChecks', 'testBuilds', 'updateStatus']) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ['updateBanner', 'installUpdate', 'updateNote', 'upgradeBanner', 'updateChecks', 'testBuilds', 'updateStatus']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(main, /spawn\(file,updates\.INSTALL_ARGS,\{detached:true/, 'runs the checked installer, detached so it outlives the app');
+  assert.match(main, /prefs\.testBuilds\?\?\/-\/\.test\(app\.getVersion\(\)\)/, 'test-build users get newer test builds by default');
   const pkg = JSON.parse(fs.readFileSync(new URL('../desktop/package.json', import.meta.url), 'utf8'));
   assert.ok(pkg.build.files.includes('*.cjs'), 'updates.cjs is packaged');
+});
+
+// ---- Update now: download, verify, install ----
+const dl = 'https://github.com/Willy-nz/Tohyee-TV/releases/download/v0.7.0/';
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'tohyee-update-'));
+const body = Buffer.alloc(300000, 7);
+const sha = crypto.createHash('sha256').update(body).digest('hex');
+const serve = (files, seen = []) => async url => {
+  seen.push(url);
+  if (!(url in files)) return {ok: false, status: 404};
+  const data = files[url];
+  if (typeof data === 'string') return {ok: true, status: 200, text: async () => data};
+  async function* chunks() { for (let i = 0; i < data.length; i += 65536) yield new Uint8Array(data.subarray(i, i + 65536)); }
+  return {ok: true, status: 200, headers: {get: h => h === 'content-length' ? String(data.length) : null}, body: chunks()};
+};
+const upd = () => pickUpdate([rel('v0.7.0')], '0.6.0');
+
+test('The checksum file is read as CI writes it (CRLF lines, "hash  name")', () => {
+  const text = `${'a'.repeat(64)}  Tohyee-TV-Setup-0.7.0.exe\r\n${'b'.repeat(64)}  Other.exe\r\n`;
+  assert.equal(checksumFor(text, 'Tohyee-TV-Setup-0.7.0.exe'), 'a'.repeat(64));
+  assert.equal(checksumFor(text, 'Missing.exe'), null);
+  assert.equal(checksumFor(`﻿${'C'.repeat(64)} *X.exe`, 'X.exe'), 'c'.repeat(64));
+});
+
+test('Update now downloads the installer, checks it, and reports progress', async () => {
+  const dir = tmp(); const progress = [];
+  const file = await downloadUpdate({update: upd(), dir, onProgress: (r, t) => progress.push([r, t]),
+    fetchFn: serve({[dl + 'SHA256SUMS.txt']: `${sha}  Tohyee-TV-Setup-0.7.0.exe\r\n`, [dl + 'Tohyee-TV-Setup-0.7.0.exe']: body})});
+  assert.equal(path.basename(file), 'Tohyee-TV-Setup-0.7.0.exe');
+  assert.ok(fs.readFileSync(file).equals(body));
+  assert.deepEqual(progress.at(-1), [body.length, body.length]);
+  assert.ok(progress.length > 1, 'progress while downloading');
+  assert.deepEqual(fs.readdirSync(dir), ['Tohyee-TV-Setup-0.7.0.exe'], 'no partial file left');
+});
+
+test('A wrong or missing checksum means nothing is installed or left behind', async () => {
+  for (const sums of [`${'0'.repeat(64)}  Tohyee-TV-Setup-0.7.0.exe\r\n`, `${sha}  Something-else.exe\r\n`]) {
+    const dir = tmp();
+    await assert.rejects(downloadUpdate({update: upd(), dir, fetchFn: serve({[dl + 'SHA256SUMS.txt']: sums, [dl + 'Tohyee-TV-Setup-0.7.0.exe']: body})}), /checksum/);
+    assert.deepEqual(fs.readdirSync(dir), []);
+  }
+  await assert.rejects(downloadUpdate({update: upd(), dir: tmp(), fetchFn: serve({})}), /error \(404\)/);
+  await assert.rejects(downloadUpdate({update: upd(), dir: tmp(), fetchFn: async () => { throw new TypeError('fetch failed'); }}), /internet connection/);
+});
+
+test('Only this project’s own release downloads are fetched', async () => {
+  const outside = rel('v0.7.0'); outside.assets[0].browser_download_url = 'https://evil.example/Tohyee-TV-Setup-0.7.0.exe';
+  const u = pickUpdate([outside], '0.6.0');
+  assert.equal(u.version, '0.7.0', 'still offered, so the release page can be opened');
+  assert.equal(u.installer, undefined, 'but not installable from the app');
+  const seen = [];
+  await assert.rejects(downloadUpdate({update: u, dir: tmp(), fetchFn: serve({}, seen)}), /release page/);
+  const sneaky = upd(); sneaky.installer.name = '..\\evil.exe';
+  await assert.rejects(downloadUpdate({update: sneaky, dir: tmp(), fetchFn: serve({}, seen)}), /release page/);
+  assert.deepEqual(seen, [], 'nothing was requested');
+});
+
+test('The installer runs silently, keeps the install folder and reopens the app', () => {
+  assert.deepEqual(INSTALL_ARGS, ['/S', '--updated', '--force-run']);
 });

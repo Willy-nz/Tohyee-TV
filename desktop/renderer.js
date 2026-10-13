@@ -32,7 +32,19 @@ $('saveChannels').onclick=async()=>{const channels=[...$('channelEditor').childr
 function renderUpdates(s){
  const u=s.update||{status:'idle'};
  $('updateBanner').hidden=u.status!=='available';
- if(u.status==='available')$('updateText').textContent=`Tohyee TV ${u.update.version}${u.update.prerelease?' (test build)':''} is available. You have ${s.version}.`;
+ const i=s.install, mb=n=>(n/1048576).toFixed(0), installable=s.canInstall&&!!u.update?.installer;
+ if(u.status==='available'){
+  const name=`Tohyee TV ${u.update.version}${u.update.prerelease?' (test build)':''}`;
+  $('updateText').textContent=i?.state==='downloading'?`Downloading ${name}… ${i.total?`${Math.floor(i.received/i.total*100)}% (${mb(i.received)} of ${mb(i.total)} MB)`:`${mb(i.received)} MB`}`
+   :i?.state==='installing'?`Installing ${name}. Tohyee TV will close and open again by itself.`
+   :i?.state==='error'?`Couldn’t update to ${name}: ${i.message}`
+   :`${name} is available. You have ${s.version}.`;
+  const working=['downloading','installing'].includes(i?.state);
+  $('installUpdate').hidden=!installable||working;
+  $('installUpdate').textContent=i?.state==='error'?'Try again':'Update now';
+  $('updateNote').hidden=!installable||working;
+  $('updateNote').textContent=s.source?.connected?'Updating stops your broadcasts. Click Broadcast again in each Chrome tab once it reopens.':'Tohyee TV will close for a moment, update and open again.';
+ }
  $('upgradeBanner').hidden=!s.upgradedFrom;
  if(s.upgradedFrom)$('upgradeText').textContent=`Updated from ${s.upgradedFrom} to ${s.version}. Reload the Tohyee TV extension at chrome://extensions (click its reload arrow) so Chrome uses the new version.`;
  const when=u.checkedAt?` Last checked ${new Date(u.checkedAt).toLocaleString()}.`:'';
