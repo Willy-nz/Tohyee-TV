@@ -4,6 +4,8 @@ Test build of Tohyee TV 0.6.1: broadcast Chrome tabs to Plex as live TV channels
 
 **New in 0.6.1 — update checker.** The app checks GitHub when it starts and once a day, and tells you when a new version is out: a Windows notification, a banner with a **Download** button, and an item in the tray menu. It only reads the public list of releases and never installs anything itself. Turn it off, or include test builds, under **Settings → Updates**. After you upgrade, the app reminds you to reload the Chrome extension.
 
+**Fixed in 0.6.1 — standby with several channels.** Standby used to start only after someone had watched a channel and stopped. A channel you broadcast but nobody watched stayed on the video page and kept using one of your streams. Now every channel nobody is watching leaves the video page after the standby time, whether or not it has been watched yet, while your other channels keep playing.
+
 After installing, reload the extension at `chrome://extensions` so it shows version **0.6.1**.
 
 ---

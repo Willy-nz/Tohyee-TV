@@ -188,6 +188,48 @@ test('Nobody watching: pause now, leave the video page after the set time', asyn
   assert.equal(status.returnUrl, 'https://www.skygo.co.nz/watch/live/1');
 });
 
+test('A channel that is broadcast but never watched also leaves the video page after the set time', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open(); await tick();
+  assert.match((await h.send('status')).message, /Nobody is watching yet: leaving the video page in 1 minute/);
+  assert.equal([...h.timers.values()].filter(t => t.ms === 60000).length, 1, 'one 60 s wait from the start');
+  await h.runTimers(t => t.ms === 60000);
+  const leave = h.toWorker.find(m => m.type === 'standbyTab');
+  assert.equal(leave.tabId, 7);
+  assert.equal((await h.send('status')).inStandby, true);
+  ws.message({type: 'viewers', count: 1}); await tick();
+  assert.ok(h.toWorker.some(m => m.type === 'returnTab' && m.url === 'https://www.skygo.co.nz/watch/live/1'), 'goes back when someone watches');
+});
+
+test('Watching before the wait is up cancels the never-watched standby', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'viewers', count: 1}); await tick();
+  assert.ok(![...h.timers.values()].some(t => t.ms === 60000));
+  assert.equal(h.toWorker.filter(m => m.type === 'standbyTab').length, 0);
+});
+
+test('With Pause or Keep playing, an unwatched channel is left alone', async () => {
+  for (const idleAction of ['pause', 'none']) {
+    const h = harness({workerReplies: standbyReplies()});
+    await standbyArm(h, {idleAction}); h.sockets[0].open();
+    assert.ok(![...h.timers.values()].some(t => t.ms === 60000), idleAction);
+    assert.match((await h.send('status')).message, /^Ready\. Waiting for someone/);
+  }
+});
+
+test('Each channel has its own never-watched wait', async () => {
+  const h = harness({workerReplies: standbyReplies()});
+  await standbyArm(h); await standbyArm(h, {channelNumber: '2', tabId: 8});
+  assert.equal(h.sockets.length, 2);
+  for (const ws of h.sockets) ws.open();
+  assert.equal([...h.timers.values()].filter(t => t.ms === 60000).length, 2);
+  h.sockets[0].message({type: 'viewers', count: 1}); await tick();
+  await h.runTimers(t => t.ms === 60000);
+  const left = h.toWorker.filter(m => m.type === 'standbyTab');
+  assert.deepEqual(left.map(m => [m.tabId, m.channelNumber]), [[8, '2']], 'only the unwatched channel leaves');
+});
+
 test('Someone starts watching on standby: go back to the same video page and press Play', async () => {
   const h = harness({workerReplies: standbyReplies({standbyTab: () => ({ok: true, url: 'https://www.skygo.co.nz/watch/live/5'})})});
   await standbyArm(h); const ws = h.sockets[0]; ws.open();
