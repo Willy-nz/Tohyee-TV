@@ -15,7 +15,12 @@ const PLAY_CHECKS_MS = [6000, 12000, 20000];   // after a reload
 const RESUME_CHECKS_MS = [300, 4000, 10000];   // after a pause, without reloading
 const IDLE_ACTIONS = ['standby', 'pause', 'none'];
 const MAX_UNSENT_BYTES = 32 * 1024 * 1024;
+// H.264 first: the tuner can pass it straight to Plex without re-encoding.
 const MIME_TYPES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+// Ask for a keyframe every 2 seconds (milliseconds, per the MediaRecorder
+// spec). Plex needs regular keyframes to start and join the stream; if Chrome
+// doesn't honour this, the tuner notices and switches to compatibility encoding.
+const KEYFRAME_INTERVAL_MS = 2000;
 
 function createCapture(channelNumber) {
 const s = {
@@ -138,6 +143,7 @@ function connect() {
     s.retry = 0;
     ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction}));
     set('ready', 'Ready. Waiting for someone to watch Tohyee TV in Plex.');
+    idleFromStart();
   };
   ws.onmessage = event => {
     if (s.ws !== ws || typeof event.data !== 'string') return;
@@ -172,7 +178,7 @@ function startRecorder(session) {
   if (!mimeType) { set('error', 'Chrome has no supported video recorder.'); return; }
   let recorder;
   try {
-    recorder = new MediaRecorder(s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000});
+    recorder = new MediaRecorder(s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000, videoKeyFrameIntervalDuration: KEYFRAME_INTERVAL_MS});
   } catch (error) {
     set('error', `Could not start sending: ${error.message}`);
     return;
@@ -241,6 +247,17 @@ async function nobodyWatching() {
   } else if (result?.paused) set('ready', 'Nobody is watching — paused the video. It will play again when someone starts watching.');
   else if (result?.permission === false) set('ready', 'Nobody is watching. Couldn’t pause the video: Tohyee TV wasn’t given permission on this site.');
   else set('ready', 'Nobody is watching. No video was found to pause.');
+}
+
+// A channel that is broadcasting but that nobody has watched yet is idle too:
+// with several channels, the unwatched tabs would otherwise keep playing and
+// keep using the service's streams. Leave the page after the same wait; if
+// someone starts watching first, viewersChanged() cancels this.
+function idleFromStart() {
+  if (s.idleAction !== 'standby' || s.inStandby || s.viewers > 0 || s.standbyTimer || s.tabId === null) return;
+  const tabId = s.tabId;
+  s.standbyTimer = setTimeout(() => enterStandby(tabId), s.standbySeconds * 1000);
+  set('ready', `Ready. Nobody is watching yet: leaving the video page in ${describeWait(s.standbySeconds)} unless someone starts watching in Plex.`);
 }
 
 const STANDBY_MESSAGE = 'Standby — left the video page so it doesn’t use one of your streams. It goes back when someone watches in Plex.';

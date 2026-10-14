@@ -1,4 +1,16 @@
-Windows x64 installer for Tohyee TV: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
+Test build of Tohyee TV 0.6.1: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
+
+**New in 0.6.1 — steadier passthrough.** The extension now asks Chrome for a keyframe (a "fresh start" picture) every 2 seconds, which Plex needs to start the channel quickly and to let a second screen join cleanly. If Chrome doesn't send them, the tuner notices within about 6 seconds and switches that channel to compatibility encoding without disconnecting anyone. The tuner window says when that happens.
+
+**New in 0.6.1 — update from the app.** The app checks GitHub when it starts and once a day, and tells you when a new version is out (a Windows notification, a banner, and an item in the tray menu). Click **Update now**: it downloads the installer, checks it against the release's checksum, then closes, updates itself and opens again. Nothing installs until you click. Updating stops any broadcasts, so click Broadcast again in each Chrome tab afterwards. If you're on a test build, you're offered newer test builds too. Change this under **Settings → Updates**. After an update, the app reminds you to reload the Chrome extension.
+
+**Fixed in 0.6.1 — standby with several channels.** Standby used to start only after someone had watched a channel and stopped. A channel you broadcast but nobody watched stayed on the video page and kept using one of your streams. Now every channel nobody is watching leaves the video page after the standby time, whether or not it has been watched yet, while your other channels keep playing.
+
+**0.6.1-alpha.5** is the same as alpha.4. It exists so you can try **Update now**: install alpha.4, then update to this one from the app.
+
+After installing, reload the extension at `chrome://extensions` so it shows version **0.6.1**.
+
+---
 
 **New in 0.6.0 — standby frees your stream.** Services such as Sky Go limit how many devices can watch at once, and a paused video still counts. Now, when nobody is watching a channel in Plex, the extension pauses the video straight away and, after a set time (1 minute by default), moves the tab to a Tohyee TV standby page. That closes the site's player, the same as leaving the page yourself. When someone starts watching, it goes back to the same video page and presses Play — no need to click Broadcast again.
 

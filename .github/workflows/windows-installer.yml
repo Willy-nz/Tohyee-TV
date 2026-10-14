@@ -87,7 +87,8 @@ jobs:
           "$hash  $($exe.Name)" | Set-Content dist/SHA256SUMS.txt
           $notes = Get-Content desktop/RELEASE_NOTES.md -Raw
           gh release view "v$v" 2>$null
-          if ($LASTEXITCODE -eq 0) { throw 'Version already published. Bump the version rather than overwrite it.' }
+          # Already published (for example a test build made from a branch, then merged): leave it alone.
+          if ($LASTEXITCODE -eq 0) { Write-Output "::notice::v$v is already published; nothing to do. Bump the version to publish a new release."; exit 0 }
           # Versions with a suffix (e.g. 0.6.0-alpha.1) are published as test releases.
           # (A plain string, not an array: PowerShell turns a one-item array into a string, and splatting a string passes each character separately.)
           $flag = if ($v -match '-') { '--prerelease' } else { '--latest' }
