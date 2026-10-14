@@ -1,4 +1,4 @@
-Test build of Tohyee TV 0.6.1: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
+Tohyee TV 0.6.1: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
 
 **New in 0.6.1 — steadier passthrough.** The extension now asks Chrome for a keyframe (a "fresh start" picture) every 2 seconds, which Plex needs to start the channel quickly and to let a second screen join cleanly. If Chrome doesn't send them, the tuner notices within about 6 seconds and switches that channel to compatibility encoding without disconnecting anyone. The tuner window says when that happens.
 
@@ -6,9 +6,7 @@ Test build of Tohyee TV 0.6.1: broadcast Chrome tabs to Plex as live TV channels
 
 **Fixed in 0.6.1 — standby with several channels.** Standby used to start only after someone had watched a channel and stopped. A channel you broadcast but nobody watched stayed on the video page and kept using one of your streams. Now every channel nobody is watching leaves the video page after the standby time, whether or not it has been watched yet, while your other channels keep playing.
 
-**0.6.1-alpha.5** is the same as alpha.4. It exists so you can try **Update now**: install alpha.4, then update to this one from the app.
-
-After installing, reload the extension at `chrome://extensions` so it shows version **0.6.1**.
+**Upgrading from 0.6.0 or earlier?** Quit the old app from its tray menu and run this installer; this is the last time you need to download one by hand. Then reload the extension at `chrome://extensions` so it shows version **0.6.1**.
 
 ---
 
