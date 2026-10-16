@@ -183,6 +183,8 @@ function connect() {
 async function tune(message,ws){
  const id=navigation=++nextNavigation;stopRecorder();clearStandbyTimer();clearPlayChecks();s.inStandby=false;s.viewers=0;
  set('starting',`Switching to ${message.channelName}…`);
+ // The armed tab's own address decides which website channels may load.
+ if(!s.returnUrl){const error='This tab’s web address isn’t known. Open the video website in it and arm it again.';set('error',error);send({type:'tuned',token:message.token,ok:false,error});return;}
  const result=await toWorker({type:'navigatePool',tabId:s.tabId,url:message.url,origin:new URL(s.returnUrl).origin,navigation:id});
  if(id!==navigation||s.ws!==ws||!s.armed)return;
  if(result?.ok){s.tabTitle=message.channelName;set('ready',`Ready: ${message.channelName}`);}

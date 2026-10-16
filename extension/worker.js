@@ -151,7 +151,8 @@ async function command(message) {
       try{return await navigatePool(message);}catch(e){return {ok:false,error:e.message};}
     case 'channels': {
       const {port}=await settings();
-      const setup=await (await fetch(`http://127.0.0.1:${port}/capture.json`,{signal:AbortSignal.timeout(3000)})).json();
+      // Older tuners have no capture.json: they only have dedicated channels.
+      const setup=await fetch(`http://127.0.0.1:${port}/capture.json`,{signal:AbortSignal.timeout(3000)}).then(r=>r.ok?r.json():{}).catch(()=>({}));
       if(setup.mode==='pool')return Array.from({length:setup.tabCount},(_,i)=>({channelNumber:'@'+(i+1),channelName:'Reusable tab '+(i+1)}));
       const response=await fetch(`http://127.0.0.1:${port}/channels.json`,{signal:AbortSignal.timeout(3000)});
       if(!response.ok)throw new Error('Could not load channels');

@@ -1,7 +1,7 @@
 name: Windows installer
 on:
   push:
-    branches: [main, feature/reusable-tabs]
+    branches: [main]
     paths: [desktop/package.json, .github/workflows/windows-installer.yml]
   workflow_dispatch:
 permissions:

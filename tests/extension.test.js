@@ -395,3 +395,14 @@ test('Reusable tab acknowledges navigation before starting capture and never rel
 test('Late navigation completion cannot acknowledge an obsolete tune',async()=>{
  let finish;const h=harness({workerReplies:{navigatePool:()=>new Promise(r=>finish=r),parkPool:()=>({ok:true})}});await h.send('arm',{channelNumber:'@1',streamId:'sid',tabId:7,tabUrl:'https://example.com/live',port:34500});const ws=h.sockets[0];ws.open();ws.message({type:'tune',token:1,url:'https://example.com/one',channelName:'One'});ws.message({type:'park'});finish({ok:true});await tick();assert.ok(!ws.json().some(m=>m.type==='tuned'));
 });
+
+test('A reusable tab with no known address refuses a channel switch straight away', async () => {
+  const h = harness({workerReplies: {navigatePool: () => ({ok: true})}});
+  await h.send('arm', {channelNumber: '@1', streamId: 'sid', tabId: 7, tabTitle: 'x', tabUrl: 'chrome://newtab/', port: 34500});
+  const ws = h.sockets[0]; ws.open();
+  ws.message({type: 'tune', token: 5, url: 'https://www.skygo.co.nz/live/2', channelName: 'Sky Sport 2'}); await tick();
+  const reply = ws.json().find(m => m.type === 'tuned');
+  assert.deepEqual([reply.token, reply.ok], [5, false]);
+  assert.match(reply.error, /web address isn’t known/);
+  assert.equal(h.toWorker.filter(m => m.type === 'navigatePool').length, 0);
+});
