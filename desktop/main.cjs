@@ -3,7 +3,7 @@ const fs = require('node:fs'); const path = require('node:path'); const {pathToF
 const {networkInterfaces} = require('node:os');
 const {spawn} = require('node:child_process');
 const updates = require('./updates.cjs');
-let win,tray,indicator,runtime,config,configPath,prefs,prefsPath,quitting=false,closing=false;
+let guide,win,tray,indicator,runtime,config,configPath,prefs,prefsPath,quitting=false,closing=false;
 const logs=[]; let lastLive=false, problem='', mode='chrome', changing=false;
 // Update check state: status idle | checking | available | current | error
 let update={status:'idle'}, upgradedFrom='';
@@ -20,7 +20,7 @@ const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
 // Checks GitHub for a newer installer. Automatic checks tell the person once
@@ -84,7 +84,7 @@ async function start(test=false){
   problem='';mode=test?'test':'chrome';
   try{
     const {startRuntime}=await import(pathToFileURL(path.join(resources,'tuner/src/runtime.js')).href);
-    runtime=await startRuntime({config,ffmpeg:encPath,log,testPattern:test});
+    runtime=await startRuntime({config,ffmpeg:encPath,log,testPattern:test,guide});
     log(test?'Test picture is ready.':'Tuner is ready. Choose a tab in Chrome to broadcast.');
   }catch(error){problem=error.code==='EADDRINUSE'?'The tuner port is already in use. Close the old tuner and click Restart tuner.':error.message;log(problem);}
 }
@@ -101,6 +101,18 @@ ipcMain.handle('action',async(event,name,value)=>{
   switch(name){
     case 'stop':runtime?.stopBroadcast();break;
     case 'stopChannel':runtime?.stopBroadcast(String(value));break;
+    case 'captureSettings': {
+      const {validate}=await import(pathToFileURL(path.join(resources,'tuner/src/config.js')).href);
+      const next={...config,captureMode:value.mode,tabCount:Number(value.count)};const errors=validate(next);if(errors.length)throw Error(errors.join('; '));
+      fs.writeFileSync(configPath,JSON.stringify(next,null,2));config=next;await restart();break;
+    }
+    case 'guideEnabled':config.guideEnabled=!!value;fs.writeFileSync(configPath,JSON.stringify(config,null,2));if(value)guide.refresh();break;
+    case 'refreshGuide':guide.refresh();break;
+    case 'importGuide': {
+      if(guide.busy)throw Error('Wait for the current guide download to finish.');
+      const pick=await require('electron').dialog.showOpenDialog(win,{properties:['openFile'],filters:[{name:'XMLTV guide',extensions:['xml','gz']}]});
+      if(!pick.canceled){const f=pick.filePaths[0];if(fs.statSync(f).size>100*1024*1024)throw Error('Guide file is too large');await guide.import(fs.readFileSync(f));}break;
+    }
     case 'channels': {
       const {validate}=await import(pathToFileURL(path.join(resources,'tuner/src/config.js')).href);
       const next={...config,channels:value};const errors=validate(next);if(errors.length)throw new Error(errors.join('; '));
@@ -151,6 +163,10 @@ else {
     configPath=path.join(app.getPath('userData'),'tuner.json');
     config=loadConfig(configPath);config.listenAddress=prefs.lan?'0.0.0.0':'127.0.0.1';
     config.ffmpegPath=encPath;fs.writeFileSync(configPath,JSON.stringify(config,null,2));
+    const {GuideStore}=await import(pathToFileURL(path.join(resources,'tuner/src/epg.js')).href);
+    guide=new GuideStore({directory:path.join(app.getPath('userData'),'guide'),log});await guide.load();
+    if(config.guideEnabled&&(!guide.updatedAt||Date.now()-Date.parse(guide.updatedAt)>6*60*60*1000))guide.refresh();
+    setInterval(()=>{if(config.guideEnabled)guide.refresh();},6*60*60*1000).unref();
     win=new BrowserWindow({width:1040,height:800,minWidth:780,minHeight:600,show:false,backgroundColor:'#17181c',icon,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
     secureWindow(win);await win.loadFile(path.join(__dirname,'index.html'));
     win.on('close',event=>{if(!quitting){event.preventDefault();win.hide();if(!prefs.explainedTray){notify('Tohyee TV is still running','Use the Spitz tray icon to open the app or quit.');prefs.explainedTray=true;fs.writeFileSync(prefsPath,JSON.stringify(prefs));}}});

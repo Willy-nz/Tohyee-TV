@@ -15,6 +15,9 @@ export const DEFAULTS = Object.freeze({
   programmeTitle: 'Live Desktop',
   source: 'chrome',
   videoMode: 'auto',
+  captureMode: 'dedicated',
+  tabCount: 3,
+  guideEnabled: false,
   ffmpegPath: ''
 });
 
@@ -40,14 +43,18 @@ export function validate(config) {
   if (typeof config.ffmpegPath !== 'string') problems.push('ffmpegPath must be text');
   if (config.videoMode !== undefined && !['auto','encode'].includes(config.videoMode)) problems.push('videoMode must be auto or encode');
   if (!['chrome', 'test'].includes(config.source)) problems.push('source must be "chrome" or "test"');
+  if(!['dedicated','pool'].includes(config.captureMode??'dedicated'))problems.push('Invalid capture mode');
+  if(!Number.isInteger(config.tabCount??3)||(config.tabCount??3)<1||(config.tabCount??3)>8)problems.push('Choose 1–8 reusable tabs');
   if (config.channels !== undefined) {
-    if (!Array.isArray(config.channels) || config.channels.length < 1 || config.channels.length > 8) problems.push('Configure between 1 and 8 channels');
+    if (!Array.isArray(config.channels) || config.channels.length < 1 || config.channels.length > 200) problems.push('Configure between 1 and 200 channels');
     else {
       const numbers = new Set();
       for (const c of config.channels) {
         if (!c || typeof c.channelNumber !== 'string' || !/^\d{1,4}(\.\d{1,3})?$/.test(c.channelNumber ?? '')) { problems.push('Invalid channel number'); continue; }
         if (numbers.has(c.channelNumber)) problems.push('Channel numbers must be unique');
         numbers.add(c.channelNumber);
+        if(c.url)try{const u=new URL(c.url);if(u.protocol!=='https:'||u.username||u.password)throw Error();}catch{problems.push('Channel web addresses must be HTTPS');}
+        if(c.guideId!==undefined&&(typeof c.guideId!=='string'||c.guideId.length>200))problems.push('Invalid guide mapping');
         for (const key of ['channelName','programmeTitle']) if (typeof c[key] !== 'string' || !c[key].trim() || c[key].length > 60) problems.push(`${key} must be 1–60 characters`);
       }
     }

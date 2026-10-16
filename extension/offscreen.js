@@ -22,7 +22,9 @@ const MIME_TYPES = ['video/webm;codecs=h264,opus', 'video/webm;codecs=vp8,opus',
 // doesn't honour this, the tuner notices and switches to compatibility encoding.
 const KEYFRAME_INTERVAL_MS = 2000;
 
+let nextNavigation=0;
 function createCapture(channelNumber) {
+const pooled=channelNumber.startsWith('@');let navigation=0;
 const s = {
   state: 'idle',            // idle | starting | connecting | ready | live | error
   message: 'Not broadcasting.',
@@ -105,9 +107,11 @@ async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch,
 
 function disarm(message = 'Not broadcasting.', quiet = false) {
   s.armed = false;
+  navigation=++nextNavigation;
+  if(pooled&&s.tabId!==null)toWorker({type:'cancelPool',tabId:s.tabId,navigation});
   clearStandbyTimer();
   // If the tab is on the standby page, give the person their video page back.
-  if (s.inStandby && s.tabId !== null && s.returnUrl) toWorker({type: 'returnTab', tabId: s.tabId, url: s.returnUrl});
+  if (!pooled && s.inStandby && s.tabId !== null && s.returnUrl) toWorker({type: 'returnTab', tabId: s.tabId, url: s.returnUrl});
   s.inStandby = false;
   clearTimeout(s.retryTimer); s.retryTimer = null; s.retry = 0;
   clearPlayChecks();
@@ -132,7 +136,7 @@ function connect() {
   set('connecting', `Looking for the Tohyee TV tuner on this computer (port ${s.port})…`);
   let ws;
   try {
-    ws = new WebSocket(`ws://127.0.0.1:${s.port}/source/${encodeURIComponent(channelNumber)}`);
+    ws = new WebSocket(`ws://127.0.0.1:${s.port}/${pooled?'slot/'+channelNumber.slice(1):'source/'+encodeURIComponent(channelNumber)}`);
   } catch (error) {
     set('error', `Can't connect to the tuner: ${error.message}`);
     return;
@@ -150,6 +154,8 @@ function connect() {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
     if (message.type === 'shutdown') disarm('Stopped from the Windows app.');
+    else if (pooled && message.type === 'tune') tune(message,ws);
+    else if (pooled && message.type === 'park') park();
     else if (message.type === 'start') startRecorder(message.session);
     else if (message.type === 'stop') nobodyWatching();
     else if (message.type === 'viewers') viewersChanged(Number(message.count) || 0);
@@ -157,6 +163,8 @@ function connect() {
   ws.onclose = () => {
     if (s.ws !== ws) return;
     s.ws = null;
+    navigation=++nextNavigation;
+  if(pooled&&s.tabId!==null)toWorker({type:'cancelPool',tabId:s.tabId,navigation});
     stopRecorder();
     clearPlayChecks();
     s.viewers = 0;
@@ -168,6 +176,26 @@ function connect() {
     updateBadge();
     s.retryTimer = setTimeout(connect, delay);
   };
+}
+
+// Only acknowledge a tune after its page has loaded and a video is playing.
+// The tuner withholds capture data until this acknowledgement.
+async function tune(message,ws){
+ const id=navigation=++nextNavigation;stopRecorder();clearStandbyTimer();clearPlayChecks();s.inStandby=false;s.viewers=0;
+ set('starting',`Switching to ${message.channelName}…`);
+ // The armed tab's own address decides which website channels may load.
+ if(!s.returnUrl){const error='This tab’s web address isn’t known. Open the video website in it and arm it again.';set('error',error);send({type:'tuned',token:message.token,ok:false,error});return;}
+ const result=await toWorker({type:'navigatePool',tabId:s.tabId,url:message.url,origin:new URL(s.returnUrl).origin,navigation:id});
+ if(id!==navigation||s.ws!==ws||!s.armed)return;
+ if(result?.ok){s.tabTitle=message.channelName;set('ready',`Ready: ${message.channelName}`);}
+ else set('error',result?.error||'The channel did not start. Check its link and sign-in.');
+ send({type:'tuned',token:message.token,ok:!!result?.ok,error:result?.error});
+}
+async function park(){
+ const id=navigation=++nextNavigation;stopRecorder();clearStandbyTimer();clearPlayChecks();s.viewers=0;s.wasWatching=false;
+ const result=await toWorker({type:'parkPool',tabId:s.tabId,navigation:id,channelNumber});
+ if(id!==navigation||!s.armed)return;s.inStandby=!!result?.ok;
+ set('ready',result?.ok?'Reusable tab available — player closed.':'Reusable tab available; could not close the previous player.');
 }
 
 // ---- Recording while watched ----------------------------------------------
@@ -220,7 +248,7 @@ function viewersChanged(count) {
   s.viewers = count;
   if (count === 0) clearPlayChecks();
   if (count > 0) { s.wasWatching = true; clearStandbyTimer(); }
-  if (!started || s.tabId === null) return;
+  if (pooled || !started || s.tabId === null) return;
   if (s.inStandby) returnFromStandby();
   else if (s.reloadOnWatch) refreshForViewer();
   else if (s.idleAction !== 'none') resumeForViewer();
@@ -236,6 +264,7 @@ async function nobodyWatching() {
   clearPlayChecks();
   clearStandbyTimer();
   if (!s.armed || s.tabId === null) return;
+  if(pooled){set('ready','Reusable tab ready.');return;}
   if (s.inStandby) { set('ready', STANDBY_MESSAGE); return; }
   if (s.idleAction === 'none') { set('ready', 'Ready. Nobody is watching right now.'); return; }
   const tabId = s.tabId;
@@ -254,6 +283,7 @@ async function nobodyWatching() {
 // keep using the service's streams. Leave the page after the same wait; if
 // someone starts watching first, viewersChanged() cancels this.
 function idleFromStart() {
+  if(pooled){s.standbyTimer=setTimeout(()=>{if(s.viewers===0&&s.state==='ready')park();},2000);return;}
   if (s.idleAction !== 'standby' || s.inStandby || s.viewers > 0 || s.standbyTimer || s.tabId === null) return;
   const tabId = s.tabId;
   s.standbyTimer = setTimeout(() => enterStandby(tabId), s.standbySeconds * 1000);

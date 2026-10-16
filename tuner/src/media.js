@@ -20,11 +20,12 @@ export function sourceEncoder({source, ffmpeg, compatibility = false, tsOffset =
     if (copy && code !== 0 && !outputSeen) onCopyFailure();
     proxy.emit('exit',code,signal);
   };
-  proxy.kill = () => {child?.kill(); finish(0,'SIGTERM');};
+  const stopChild=()=>{if(!child)return;child.stdin?.destroy();child.kill();const process=child;const timer=setTimeout(()=>{if(process.exitCode===null)process.kill('SIGKILL');},2000);timer.unref?.();};
+  proxy.kill = () => {stopChild(); finish(0,'SIGTERM');};
   const watchdog = setInterval(() => {
     if (Date.now()-lastOutput < timeoutMs) return;
-    proxy.stderr.write('No encoded media received for 20 seconds; closing stream so Plex can retry.');
-    child?.kill(); finish(1,'timeout');
+    proxy.stderr.write(`No encoded media received for ${timeoutMs/1000} seconds; closing stream so Plex can retry.`);
+    stopChild(); finish(1,'timeout');
   },1000);
   watchdog.unref?.();
   source.attach(input, mime => {
