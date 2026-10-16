@@ -54,3 +54,11 @@ Run the tests with `npm test` (Node 20+). `scripts/e2e-chrome.mjs` runs the real
 Releases are published by `.github/workflows/windows-installer.yml` when the version in `desktop/package.json` changes on `main`. Versions with a suffix (for example `0.7.0-alpha.1`) are published as test releases.
 
 Tohyee TV isn't affiliated with Plex or Google. Plex and Chrome are trademarks of their owners.
+
+## Reusable tabs and real programme listings (0.7 test build)
+
+The Channels page can use a pool of 1–8 reusable Chrome tabs (default count: 3), independently of a lineup of up to 200 channels. Existing installations retain dedicated-tab mode until you choose Reusable tabs. Save each channel’s direct HTTPS video-page link, arm a different reusable slot in each Chrome tab, then tune through Plex. A watched slot is never taken away for another channel; additional viewers of the same channel share it.
+
+Enable NZXMLTV Sky listings to download and cache the fixed-ID Sky XMLTV feed. Select a guide match per channel and refresh Plex’s existing `/guide.xml` source. Listings refresh every six hours while enabled; failed downloads retain the cache. File import supports XML or gzip. Adding channels from the guide fills names and guide IDs, but video links must be supplied separately.
+
+See [test release instructions](desktop/RELEASE_NOTES.md) for setup and limitations. Website navigation/capture still requires manual Windows testing. Use the three reusable tabs only for broadcasting while armed.

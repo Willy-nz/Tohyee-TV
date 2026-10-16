@@ -59,6 +59,8 @@ export class SourceHub {
     if (connection !== this.connection) return;
     let message;
     try { message = JSON.parse(text); } catch { return; }
+    if(!message||typeof message!=='object')return;
+    this.onControl?.(message);
     if (message.type === 'hello' || message.type === 'status') {
       const first = message.type === 'hello';
       this.info = {...this.info, ...pick(message)};
@@ -89,6 +91,7 @@ export class SourceHub {
     if (connection !== this.connection) return;
     this.connection = null;
     this.info = null;
+    this.onDisconnect?.();
     this.log('Chrome disconnected — Tohyee TV is not broadcasting.');
     if (this.sink) {
       const sink = this.sink;

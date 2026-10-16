@@ -386,3 +386,12 @@ test('Recorder failure closes transport and remains stoppable',async()=>{
  test('A tab cannot be assigned to two channels simultaneously',async()=>{
  const h=harness();await arm(h);const r=await h.send('arm',{channelNumber:'2',streamId:'two',tabId:7,port:34500});assert.match(r.error,/already assigned/);assert.equal(h.sockets.length,1);
  });
+
+test('Reusable tab acknowledges navigation before starting capture and never reloads on viewer count',async()=>{
+ const h=harness({workerReplies:{navigatePool:()=>({ok:true}),parkPool:()=>({ok:true})}});
+ await h.send('arm',{channelNumber:'@1',streamId:'sid',tabId:7,tabUrl:'https://example.com/live',port:34500,reloadOnWatch:true});const ws=h.sockets[0];assert.match(ws.url,/\/slot\/1$/);ws.open();ws.message({type:'tune',token:9,url:'https://example.com/espn',channelName:'ESPN'});await tick();
+ assert.ok(ws.json().some(m=>m.type==='tuned'&&m.token===9&&m.ok));assert.equal(h.recorders.length,0);ws.message({type:'start',session:1});ws.message({type:'viewers',count:1});assert.equal(h.recorders.length,1);assert.ok(!h.toWorker.some(m=>m.type==='reloadTab'));ws.message({type:'park'});await tick();assert.equal(h.recorders[0].state,'inactive');
+});
+test('Late navigation completion cannot acknowledge an obsolete tune',async()=>{
+ let finish;const h=harness({workerReplies:{navigatePool:()=>new Promise(r=>finish=r),parkPool:()=>({ok:true})}});await h.send('arm',{channelNumber:'@1',streamId:'sid',tabId:7,tabUrl:'https://example.com/live',port:34500});const ws=h.sockets[0];ws.open();ws.message({type:'tune',token:1,url:'https://example.com/one',channelName:'One'});ws.message({type:'park'});finish({ok:true});await tick();assert.ok(!ws.json().some(m=>m.type==='tuned'));
+});

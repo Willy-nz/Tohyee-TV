@@ -34,7 +34,7 @@ async function poll() {
 // Ask (once per site) for permission to press Play / Pause on the video. Must
 // run in the popup, straight from the click. Declining still lets you broadcast.
 async function askPlayPermission() {
-  if (!el('reload').checked && el('idleAction').value === 'none') return;
+  if (!el('channel').value.startsWith('@') && !el('reload').checked && el('idleAction').value === 'none') return;
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   if (!tab?.url || !/^https?:/.test(tab.url)) return;
   const origins = [`${new URL(tab.url).origin}/*`];

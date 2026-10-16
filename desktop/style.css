@@ -2,3 +2,5 @@
 
 .channel-row{display:flex;gap:10px;margin:12px 0}.channel-row input{min-width:0;flex:1;padding:10px;background:#17181c;color:#eee;border:1px solid #565965;border-radius:6px}.channel-row input:first-child{max-width:90px}.channel-status{padding:10px 0;border-bottom:1px solid #41434a}
 .banner{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;background:#36312b;border:1px solid #8a7130;border-radius:10px;padding:12px 16px;margin-bottom:18px}.banner p{flex:1 1 320px;margin:0}
+
+.pool-settings,.guide-settings{padding:18px 0;border-bottom:1px solid #444}.channel-row{flex-wrap:wrap;padding:12px;border:1px solid #444;border-radius:10px}.channel-row input[data-key=url]{flex-basis:100%;max-width:none}.channel-row select{max-width:100%;flex:1}.pool-settings label{display:block;margin:10px 0}

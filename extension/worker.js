@@ -120,10 +120,39 @@ async function returnTab(tabId, url) {
   return {ok: true};
 }
 
+const poolNavigations=new Map();
+async function navigatePool(message){
+ const {tabId,navigation}=message;poolNavigations.set(tabId,navigation);
+ const current=()=>poolNavigations.get(tabId)===navigation;
+ if(message.type==='parkPool'){await standbyTab(tabId,message.channelNumber);return {ok:true};}
+ const url=new URL(message.url);
+ if(url.protocol!=='https:'||url.origin!==message.origin||url.username||url.password)throw new Error('Channel must be on the same HTTPS website as the authorised tab.');
+ if(!await chrome.permissions.contains({origins:[url.origin+'/*']}))throw new Error('Give the extension Play permission for this website, then arm the tab again.');
+ if(!current())return {ok:false,error:'Switch cancelled'};
+ await chrome.tabs.update(tabId,{url:url.href});
+ let loadedAt=0;
+ for(let i=0;i<35;i++){
+  await new Promise(r=>setTimeout(r,800));if(!current())return {ok:false,error:'Switch cancelled'};
+  const tab=await chrome.tabs.get(tabId);
+  if(tab.status!=='complete'){loadedAt=0;continue;}
+  if(new URL(tab.url).origin!==url.origin)throw new Error('The channel redirected to another website. Check its link or sign in.');
+  if(!loadedAt){loadedAt=Date.now();continue;}
+  if(Date.now()-loadedAt<1600)continue;
+  const result=await ensurePlaying(tabId);if(result.playing)return {ok:true};
+ }
+ throw new Error('No playing video after 28 seconds. Check the channel link, sign in or press Play.');
+}
+
 async function command(message) {
   switch (message.type) {
+    case 'cancelPool':poolNavigations.set(message.tabId,message.navigation);return {ok:true};
+    case 'navigatePool':
+    case 'parkPool':
+      try{return await navigatePool(message);}catch(e){return {ok:false,error:e.message};}
     case 'channels': {
       const {port}=await settings();
+      const setup=await (await fetch(`http://127.0.0.1:${port}/capture.json`,{signal:AbortSignal.timeout(3000)})).json();
+      if(setup.mode==='pool')return Array.from({length:setup.tabCount},(_,i)=>({channelNumber:'@'+(i+1),channelName:'Reusable tab '+(i+1)}));
       const response=await fetch(`http://127.0.0.1:${port}/channels.json`,{signal:AbortSignal.timeout(3000)});
       if(!response.ok)throw new Error('Could not load channels');
       return response.json();

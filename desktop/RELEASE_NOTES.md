@@ -1,41 +1,25 @@
-Tohyee TV 0.6.1: broadcast Chrome tabs to Plex as live TV channels. FFmpeg and the runtime are included, so there's nothing else to install.
+Windows test installer: reusable capture tabs and real Sky NZ programme listings. FFmpeg remains included.
 
-**New in 0.6.1 — steadier passthrough.** The extension now asks Chrome for a keyframe (a "fresh start" picture) every 2 seconds, which Plex needs to start the channel quickly and to let a second screen join cleanly. If Chrome doesn't send them, the tuner notices within about 6 seconds and switches that channel to compatibility encoding without disconnecting anyone. The tuner window says when that happens.
+## Set up reusable tabs
 
-**New in 0.6.1 — update from the app.** The app checks GitHub when it starts and once a day, and tells you when a new version is out (a Windows notification, a banner, and an item in the tray menu). Click **Update now**: it downloads the installer, checks it against the release's checksum, then closes, updates itself and opens again. Nothing installs until you click. Updating stops any broadcasts, so click Broadcast again in each Chrome tab afterwards. If you're on a test build, you're offered newer test builds too. Change this under **Settings → Updates**. After an update, the app reminds you to reload the Chrome extension.
+1. Quit the old app from the tray, install this version, then reload the Chrome extension at chrome://extensions. Confirm extension version 0.7.0.
+2. In **Channels**, choose **Reusable tabs**, leave the maximum at **3**, and apply. Existing installations keep dedicated mode until you switch. You can choose 1–8 tabs independently of the channel lineup (up to 200 channels).
+3. Give each channel its actual HTTPS live-video page address. Open that channel in Sky Go and copy its page address. Use links that load the intended channel directly; a generic homepage or a replay link is not a live-channel selector.
+4. Open three tabs on the same video website and sign in. In the extension on each tab, select a different reusable slot and click **Arm this tab for Plex**. Allow the website permission so the extension can press Play. Keep these tabs open; capture still requires your initial click.
+5. Select a channel in Plex. An available tab switches to its saved page. Viewers of the same channel share a tab. A fourth different channel is refused while all three are watched. When a slot becomes idle, the player page is closed and the slot can be reused. A website may take time to release a session.
 
-**Fixed in 0.6.1 — standby with several channels.** Standby used to start only after someone had watched a channel and stopped. A channel you broadcast but nobody watched stayed on the video page and kept using one of your streams. Now every channel nobody is watching leaves the video page after the standby time, whether or not it has been watched yet, while your other channels keep playing.
+The reusable tabs are dedicated to Tohyee while armed. Do not browse manually in them while someone is watching. All saved channel links must be on the same HTTPS origin as the tab authorised for capture. Channel switching may take several seconds, and login/consent screens or sites without a direct channel link may need manual attention. No DRM or service-limit bypass is provided.
 
-**Upgrading from 0.6.0 or earlier?** Quit the old app from its tray menu and run this installer; this is the last time you need to download one by hand. Then reload the extension at `chrome://extensions` so it shows version **0.6.1**.
+## Programme guide
 
----
+Enable **Use NZXMLTV Sky listings** in Channels and refresh. The app uses https://nzxmltv.com/sky/guide-static.xml.gz, caches the last successful guide, and refreshes every six hours while enabled. XMLTV .xml/.gz file import is also available.
 
-**New in 0.6.0 — standby frees your stream.** Services such as Sky Go limit how many devices can watch at once, and a paused video still counts. Now, when nobody is watching a channel in Plex, the extension pauses the video straight away and, after a set time (1 minute by default), moves the tab to a Tohyee TV standby page. That closes the site's player, the same as leaving the page yourself. When someone starts watching, it goes back to the same video page and presses Play — no need to click Broadcast again.
+Choose a guide match for each channel, or use **Add channels from downloaded guide** to populate names and mappings. This does not discover video page links: paste those separately, remove unwanted channels, and save. Your own Plex channel numbers are preserved independently of the provider’s stable guide IDs.
 
-Choose what happens in the extension under **When nobody is watching in Plex**: *Leave the video page* (default), *Pause the video*, or *Keep playing*, and how long to wait before leaving. Pressing Play and Pause needs the one-time site permission Chrome asks for.
+Plex continues to use the app’s /guide.xml address. Rescan/map the changed channels and refresh the guide in Plex. Unmapped channels retain placeholder listings. Review the guide’s update status if listings are missing; failed downloads keep the previous cache. NZXMLTV is a third-party listing source, not a video source.
 
-After installing, reload the extension at `chrome://extensions` so it shows version **0.6.0**.
+## Validation and limitations
 
-How quickly a service frees the stream after the player closes is up to the service; some take a few minutes.
+Unit tests cover leases, capacity, cancellation, guide mapping, gzip import and cache preservation. Real HTTP/WebSocket/FFmpeg smoke tests exercise three streams, shared viewers, refusing a fourth, and retuning a released slot. Browser capture and navigation are simulated in that test; actual Sky Go switching, protected-video capture and Plex playback still require manual Windows testing.
 
----
-
-- Add up to eight named channels in the Windows app, each with its own Plex stream and guide entry.
-- Assign a different Chrome tab to each channel using the extension’s channel dropdown.
-- Each channel has its own capture, encoder and Stop control. Multiple viewers of the same channel share one output.
-- Compatible H.264 video uses passthrough; other formats use the bundled encoder.
-
-## Upgrade and test
-
-1. Quit the old Tohyee TV app from its tray menu, then run the installer.
-2. Open **Channels**, add names and unique numbers, and click **Save channels & restart tuner**. Your existing channel is retained when upgrading.
-3. Reload the Tohyee TV extension at `chrome://extensions` so Chrome loads version **0.5.0**. If it points to an older extracted folder, remove that old extension and load the folder opened by the new app’s **Connect to Plex** page. Chrome may ask for the new permission to read the local tuner’s channel list.
-4. Open each source tab, click the extension, choose its channel and click **Broadcast this tab to Plex**. Click **Refresh channels** if needed. Each tab can be assigned to one channel.
-5. In Plex, rescan the tuner’s channels, refresh the XMLTV guide, and map the new channels. Keep existing channel numbers to preserve mappings. The guide contains generic channel labels, not provider schedules.
-6. Try two channels at once, then stop one and check that the other keeps playing. Saving the channel list or restarting the tuner stops all captures; reconnect the tabs afterwards.
-
-Processing starts when Plex watches a channel. Standby closes the website's player but can't control when the service frees the stream, and it doesn't bypass service limits or protected capture. Pause in Plex does not necessarily pause the browser. Start with ordinary unprotected videos or the built-in test picture.
-
-Automated tests cover isolated captures, channel routing, guide entries, concurrent media streams and packaged Windows startup. Actual Chrome/Plex playback, minimized capture and provider behaviour still require manual testing.
-
-The installer isn't code-signed yet, so Windows may show an unknown-publisher/SmartScreen warning. Choose **More info → Run anyway** if you trust this download. Bundled encoder licences and matching source archives are available from Settings.
+The live NZXMLTV feed was downloaded and parsed during development (98 channels, including ESPN and ESPN 2). The installer is unsigned and may trigger a Windows SmartScreen warning.

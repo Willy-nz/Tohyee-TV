@@ -39,7 +39,7 @@ function sourceText(source) {
 }
 
 // `source` is the Chrome SourceHub, or null when playing the test pattern.
-export function createTunerServer({config, broadcaster, source = null, channels, log = () => {}}) {
+export function createTunerServer({config, broadcaster, source = null, channels, pool, guide, log = () => {}}) {
   const fallbackBase = `http://127.0.0.1:${config.port}`;
   channels ??= new Map([[config.channelNumber,{config,broadcaster,source}]]);
   const server = createServer((req, res) => {
@@ -50,7 +50,8 @@ export function createTunerServer({config, broadcaster, source = null, channels,
     const channel = [...channels.values()].find(c=>path === `/stream/${encodeURIComponent(c.config.channelNumber)}`);
     if (channel && (method === 'GET' || method === 'HEAD')) {
       const {source,broadcaster} = channel;
-      if (source && !source.available && !broadcaster.running) {
+      if (pool && method === 'GET' && !source.acquire(()=>broadcaster.stop('Tab switching failed'))) return send(res,503,'text/plain','No reusable tab is available, or this channel needs a web address.');
+      if (!(pool && method === 'HEAD') && source && !source.available && !broadcaster.running) {
         if (method === 'GET') log(`Plex tried to watch, but Chrome is not broadcasting a tab (${req.socket.remoteAddress}).`);
         return send(res, 503, 'text/plain; charset=utf-8', 'Tohyee TV is not broadcasting. In Chrome, open your video tab, click Tohyee TV and choose Broadcast.\n');
       }
@@ -65,6 +66,8 @@ export function createTunerServer({config, broadcaster, source = null, channels,
     if (method !== 'GET' && method !== 'HEAD') return send(res, 405, 'text/plain; charset=utf-8', 'Method not allowed.\n');
 
     switch (path) {
+      case '/capture.json':
+        return send(res,200,'application/json',JSON.stringify({mode:config.captureMode??'dedicated',tabCount:config.tabCount??3}));
       case '/channels.json':
         return send(res, 200, 'application/json', JSON.stringify([...channels.values()].map(c=>({channelNumber:c.config.channelNumber,channelName:c.config.channelName}))));
       case '/discover.json':
@@ -79,7 +82,7 @@ export function createTunerServer({config, broadcaster, source = null, channels,
         return send(res, 200, 'application/xml', deviceXml(base, config));
       case '/guide.xml':
         log(`Guide requested by ${req.socket.remoteAddress}.`);
-        return send(res, 200, 'application/xml; charset=utf-8', xmltv(config));
+        return send(res, 200, 'application/xml; charset=utf-8', guide?.render(config)??xmltv(config));
       case '/':
         return send(res, 200, 'text/html; charset=utf-8', statusPage(base,channels.values().next().value.config,channels.values().next().value.broadcaster,channels.values().next().value.source));
       default:
@@ -88,6 +91,9 @@ export function createTunerServer({config, broadcaster, source = null, channels,
   });
   server.on('upgrade', (req, socket) => {
     const path = new URL(req.url, 'http://x').pathname;
+    const slot=pool?.slots.find(s=>path===`/slot/${s.id}`);
+    if(slot){if(slot.hub.available){socket.end('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n');return;}return slot.hub.handleUpgrade(req,socket);}
+    if(pool){socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');return;}
     const c = path === '/source' ? channels.values().next().value : [...channels.values()].find(c=>path === `/source/${encodeURIComponent(c.config.channelNumber)}`);
     if (c?.source) return c.source.handleUpgrade(req, socket);
     socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
