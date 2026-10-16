@@ -3,6 +3,7 @@ const fs = require('node:fs'); const path = require('node:path'); const {pathToF
 const {networkInterfaces} = require('node:os');
 const {spawn} = require('node:child_process');
 const updates = require('./updates.cjs');
+const autostart = require('./autostart.cjs');
 let guide,win,tray,indicator,runtime,config,configPath,prefs,prefsPath,quitting=false,closing=false;
 const logs=[]; let lastLive=false, problem='', mode='chrome', changing=false;
 // Update check state: status idle | checking | available | current | error
@@ -20,7 +21,7 @@ const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
 // Checks GitHub for a newer installer. Automatic checks tell the person once
@@ -62,6 +63,13 @@ function installUpdate(){
       child.once('error',error=>{install={state:'error',version:target.version,message:`Couldn’t start the installer: ${error.message}`};log(install.message);});
     })
     .catch(error=>{install={state:'error',version:target.version,message:error.message};log(`Update: ${error.message}`);});
+}
+// Opens Tohyee TV's own Chrome window. Without `setup`, the extension then
+// starts broadcasting each channel by itself (see extension/autostart.js).
+function openChromeWindow(setup=false){
+  const result=autostart.launchChrome({profile:path.join(app.getPath('userData'),'chrome-profile'),port:config.port,setup});
+  if(!result.ok){log(result.error);if(setup)throw new Error(result.error);return;}
+  log(setup?'Opened the Tohyee TV Chrome window for setup.':'Opened the Tohyee TV Chrome window to start broadcasting.');
 }
 function openUpdate(){if(update.status==='available'&&updates.isReleasePage(update.update.url))return shell.openExternal(update.update.url);}
 function notify(title,body){if(Notification.isSupported())new Notification({title,body,icon}).show();}
@@ -107,6 +115,9 @@ ipcMain.handle('action',async(event,name,value)=>{
       fs.writeFileSync(configPath,JSON.stringify(next,null,2));config=next;await restart();break;
     }
     case 'guideEnabled':config.guideEnabled=!!value;fs.writeFileSync(configPath,JSON.stringify(config,null,2));if(value)guide.refresh();break;
+    case 'autoBroadcast':prefs.autoBroadcast=!!value;break;
+    case 'chromeSetup':openChromeWindow(true);break;
+    case 'chromeStart':openChromeWindow(false);break;
     case 'refreshGuide':guide.refresh();break;
     case 'importGuide': {
       if(guide.busy)throw Error('Wait for the current guide download to finish.');
@@ -176,10 +187,13 @@ else {
     indicator.on('close',event=>{if(!quitting){event.preventDefault();indicator.hide();}});
     tray=new Tray(icon);tray.on('double-click',show);
     await start();refreshTray();setInterval(refreshTray,1000).unref();
+    if(prefs.autoBroadcast&&runtime)setTimeout(()=>openChromeWindow(false),3000).unref();
     if(upgradedFrom)notify(`Tohyee TV updated to ${app.getVersion()}`,'Reload the Tohyee TV extension at chrome://extensions so Chrome uses the new version.');
     setTimeout(()=>checkUpdates(),10000).unref();setInterval(()=>checkUpdates(),DAY).unref();
     powerMonitor.on('lock-screen',()=>runtime?.stopBroadcast());
     powerMonitor.on('suspend',()=>runtime?.stopBroadcast());
+    // Broadcasting stops while Windows is locked or asleep; start again afterwards.
+    for(const event of ['unlock-screen','resume'])powerMonitor.on(event,()=>{if(prefs.autoBroadcast&&runtime)setTimeout(()=>openChromeWindow(false),5000);});
     if(!process.argv.includes('--hidden')||problem)show();
   }).catch(error=>{require('electron').dialog.showErrorBox('Tohyee TV could not start',error.message);app.quit();});
   app.on('window-all-closed',()=>{});

@@ -4,6 +4,7 @@
 import {createServer} from 'node:http';
 import {discover, lineup, lineupStatus, deviceXml, baseUrl, escapeXml, VERSION} from './hdhr.js';
 import {xmltv} from './guide.js';
+import {autostartPlan, autostartPage} from './autostart.js';
 
 function send(res, status, type, body) {
   res.writeHead(status, {'Content-Type': type, 'Cache-Control': 'no-store'});
@@ -66,6 +67,10 @@ export function createTunerServer({config, broadcaster, source = null, channels,
     if (method !== 'GET' && method !== 'HEAD') return send(res, 405, 'text/plain; charset=utf-8', 'Method not allowed.\n');
 
     switch (path) {
+      case '/autostart.json':
+        return send(res,200,'application/json',JSON.stringify(autostartPlan(config)));
+      case '/autostart':
+        return send(res,200,'text/html; charset=utf-8',autostartPage(new URL(req.url,'http://x').searchParams.has('setup')));
       case '/capture.json':
         return send(res,200,'application/json',JSON.stringify({mode:config.captureMode??'dedicated',tabCount:config.tabCount??3}));
       case '/channels.json':

@@ -7,7 +7,7 @@ function render(s){state=s;$('version').textContent=`Version ${s.version}${/-/.t
  $('source').textContent=s.mode==='test'?'Built-in test picture':`${s.channels?.length||1} channel(s) configured`;renderChannelStatus(s);renderPool(s);if(!editorLoaded){editChannels(s.configuredChannels);editorLoaded=true;}
  $('detail').textContent=s.source?.message||'Open the Chrome extension on your chosen tab to begin.';
  $('connections').textContent=s.connections||0;$('encoding').textContent=s.encoding||'Waiting';$('logs').textContent=s.logs.join('\n');
- if(!busy){$('startup').checked=s.startup;$('lan').checked=s.lan;$('videoMode').value=s.videoMode;$('updateChecks').checked=s.updateChecks;$('testBuilds').checked=s.testBuilds;}
+ if(!busy){$('startup').checked=s.startup;$('lan').checked=s.lan;$('videoMode').value=s.videoMode;$('updateChecks').checked=s.updateChecks;$('autoBroadcast').checked=s.autoBroadcast;$('testBuilds').checked=s.testBuilds;}
  const hosts=s.lan?s.addresses:['127.0.0.1'];if(!hosts.length)hosts.push('127.0.0.1');const old=$('host').value;
  if(JSON.stringify([...$('host').options].map(o=>o.value))!==JSON.stringify(hosts)){$('host').replaceChildren(...hosts.map(h=>new Option(h,h)));if(hosts.includes(old))$('host').value=old;}
  addresses();
@@ -30,6 +30,7 @@ $('addChannel').onclick=()=>{const rows=[...$('channelEditor').children];if(rows
 $('saveChannels').onclick=async()=>{const channels=[...$('channelEditor').children].map(row=>{const c=Object.fromEntries([...row.querySelectorAll('[data-key]')].map(i=>[i.dataset.key,i.value.trim()]));return {...c,programmeTitle:c.channelName};});await action('channels',channels);$('channelSaveStatus').textContent=JSON.stringify(state.configuredChannels)===JSON.stringify(channels)?'Saved. Reconnect each Chrome tab and rescan channels in Plex.':'Not saved. Check the error above.';};
 
 function renderUpdates(s){
+ $('chromeStatus').textContent=s.chromeFound?'':'Google Chrome wasn’t found on this computer.';
  const u=s.update||{status:'idle'};
  $('updateBanner').hidden=u.status!=='available';
  const i=s.install, mb=n=>(n/1048576).toFixed(0), installable=s.canInstall&&!!u.update?.installer;
@@ -66,3 +67,5 @@ function renderPool(s){
 $('saveCapture').onclick=async()=>{const value={mode:$('captureMode').value,count:Number($('tabCount').value)};await action('captureSettings',value);if(state.captureMode===value.mode&&state.tabCount===value.count)captureDirty=false;};
 $('guideEnabled').onchange=()=>action('guideEnabled',$('guideEnabled').checked);
 $('addGuideChannels').onclick=()=>{const rows=[...$('channelEditor').children],mapped=new Set(rows.map(r=>r.querySelector('select').value)),used=new Set(rows.map(r=>r.querySelector('input').value));let n=1;for(const g of state.guide?.channels??[]){if(mapped.has(g.id)||$('channelEditor').children.length>=200)continue;while(used.has(String(n)))n++;addChannelRow({channelNumber:String(n),channelName:g.name.slice(0,60),url:'',guideId:g.id});used.add(String(n));} $('channelSaveStatus').textContent='Review the channels, add their live-page links, then Save channels.';};
+
+$('autoBroadcast').addEventListener('change',()=>action('autoBroadcast',$('autoBroadcast').checked));

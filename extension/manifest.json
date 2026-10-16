@@ -4,6 +4,7 @@
   "version": "0.7.0",
   "minimum_chrome_version": "116",
   "description": "Broadcast a Chrome tab's picture and sound to Plex through the Tohyee TV tuner on this computer.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw0ZPN7unaT/Zg2Zzd8s/TCEdnShjaevhIqnp67yhLLLmzBsIxMl0vycP4cLSMWfyh+lWjaFqIJNFgkpc0ECf8fgAoRYK6lWfksF9gdSPGXd7nztcUjSXAxUicRJnxWNClxfNO4yz0BMKIpue1QYq1iHDGqEvmH6qIZ/YPsBLjlWxQ4OvEX7yUZuGg2dyLis2SleSCuXxYbAwsfqB2JkBaGa+HwE89IgwDA8f1PRo6hVB8KTuOSdes4eiVkLKQ7u0uQPZi9Lm902ogQQ9qiZFf50nhzPvwuORJxKLQH9zMtbeGzd3RjHbQ79VZDrGLXGLyKAtXq7IRaiGTCAoV5L5fwIDAQAB",
   "permissions": [
     "activeTab",
     "tabCapture",
