@@ -119,3 +119,19 @@ test('The source encoder passes the offset to FFmpeg and reports passthrough vs 
   assert.match(modes[0], /^Video passthrough/);
   assert.doesNotMatch(modes[1], /^Video passthrough/);
 });
+
+test('Compatibility encoding keeps the frame rate Chrome sends (50 from Sky), and falls back to 30', async () => {
+  const {sourceEncoder} = await import('../tuner/src/media.js');
+  const {EventEmitter} = await import('node:events');
+  const {PassThrough} = await import('node:stream');
+  for (const [fps, expected] of [[50, '50'], [25, '25'], [undefined, '30'], [999, '30']]) {
+    let args;
+    const source = {attach(input, onMime) { onMime('video/webm;codecs=vp8,opus'); }, detach() {}};
+    const fake = () => { const c = new EventEmitter(); c.stdin = new PassThrough(); c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.kill = () => {}; return c; };
+    const enc = sourceEncoder({source, ffmpeg: 'ffmpeg', getFps: () => fps, spawnProcess: (cmd, a) => { args = a; return fake(); }});
+    const vf = args[args.indexOf('-vf') + 1];
+    assert.match(vf, new RegExp(`^fps=${expected},`), `fps ${fps}`);
+    assert.equal(args[args.indexOf('-g') + 1], String(Number(expected) * 2), 'a keyframe every 2 seconds');
+    enc.kill();
+  }
+});

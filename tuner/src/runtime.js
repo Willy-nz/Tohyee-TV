@@ -27,7 +27,7 @@ export async function startRuntime({config, ffmpeg, log = () => {}, testPattern 
       broadcaster.restart('switching to compatibility encoding');
     },
     spawnEncoder:({tsOffset = 0} = {})=>testPattern ? spawn(ffmpeg,testPatternArgs(),{stdio:['ignore','pipe','pipe'],windowsHide:true}) : sourceEncoder({
-      source,ffmpeg,compatibility:forceEncode,tsOffset,timeoutMs:pool?45000:20000,
+      source,ffmpeg,compatibility:forceEncode,tsOffset,getFps:()=>source?.status?.()?.frameRate,timeoutMs:pool?45000:20000,
       onMode:value=>{mode=value;copying=value.startsWith('Video passthrough');log(value);},
       onCopyFailure:()=>{forceEncode=true;log('Passthrough failed before playback. Next tune will use compatibility encoding.');}
     })

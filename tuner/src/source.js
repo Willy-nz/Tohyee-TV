@@ -136,7 +136,7 @@ export class SourceHub {
 
 function pick(message) {
   const out = {};
-  for (const key of ['version', 'tabTitle', 'state', 'message', 'reloadOnWatch']) {
+  for (const key of ['version', 'tabTitle', 'state', 'message', 'reloadOnWatch', 'frameRate', 'captureSize']) {
     if (key in message) out[key] = typeof message[key] === 'string' ? message[key].slice(0, 200) : message[key];
   }
   return out;

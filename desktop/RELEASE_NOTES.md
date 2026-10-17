@@ -1,4 +1,16 @@
-Tohyee TV 0.7.2: much less processor use while nothing is being watched.
+Tohyee TV 0.7.2: smoother picture, matched to Sky, and much less processor use while nothing is being watched.
+
+## Smoother picture: 50 frames a second
+
+Sky Go sends Chrome full 1080p at 50 frames a second (measured on Sky Sport 1). Tohyee TV used to capture 30, which keeps 3 of every 5 frames unevenly and makes movement slightly jerky. It now captures all 50 by default. If your computer struggles, choose **25 frames a second** in the extension (**Smoothness**); that's every second frame, so movement stays even and Chrome does about half the work.
+
+## Full 1080p from the Tohyee TV Chrome window
+
+Tohyee TV captures the whole tab, and Chrome never enlarges a smaller one. When it starts your channels, Tohyee TV's own Chrome window now sizes itself so each tab is exactly 1920×1080. If the screen is too small for that, the starting page says so. When you broadcast a tab yourself, the extension now tells you if the tab is too small or the wrong shape for full 1080p.
+
+The automatic start also no longer misses the starting page if Chrome opens it before the extension is ready.
+
+## Less processor use while idle
 
 The Tohyee TV standby page had a small pulsing dot. While a tab is being captured, Chrome redraws it, and copies it for the capture, every time anything on it moves, so each idle tab kept Chrome busy all the time. In testing, three idle reusable tabs used about a whole processor core with the dot and about 7% without it. The standby page is now completely still.
 

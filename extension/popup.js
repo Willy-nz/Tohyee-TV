@@ -14,6 +14,8 @@ function render(data) {
   el('status').textContent = LABELS[data.state] ?? data.state;
   el('status').className = data.state === 'live' ? 'live' : data.state === 'ready' ? 'ready' : data.state === 'error' ? 'error' : '';
   el('message').textContent = data.message ?? '';
+  el('sizeNote').hidden = !data.sizeNote; el('sizeNote').textContent = data.sizeNote ?? '';
+  if (document.activeElement !== el('frameRate') && data.frameRate) el('frameRate').value = String(data.frameRate);
   el('tab').hidden = !active || !data.tabTitle;
   el('tab').textContent = data.tabTitle ? `Tab: ${data.tabTitle}` : '';
   el('broadcast').hidden = active;
@@ -81,3 +83,8 @@ el('refreshChannels').addEventListener('click',loadChannels);
 loadChannels();
 const timer = setInterval(poll, 1000);
 window.addEventListener('pagehide', () => clearInterval(timer));
+
+el('frameRate').addEventListener('change', async () => {
+  render({...(await send({type: 'saveSettings', frameRate: Number(el('frameRate').value)})), ...(await send({type: 'status'}))});
+  el('message').textContent = 'Saved. Applies the next time you start broadcasting.';
+});
