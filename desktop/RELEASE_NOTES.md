@@ -1,4 +1,4 @@
-Tohyee TV 0.7.1 test build: Sky Go's channels built in.
+Tohyee TV 0.7.1: Sky Go's channels built in. Update from the app with **Update now**.
 
 ## New: Sky Go channels in one click
 

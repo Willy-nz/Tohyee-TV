@@ -12,7 +12,7 @@
 - **Only works when you're watching.** Nothing is sent until someone plays the channel in Plex. Several screens watching one channel share one stream.
 - **Standby frees your stream.** Many services limit how many devices can watch at once, and a paused video still counts. When nobody is watching a channel (including one nobody has watched yet), the extension pauses the video, then after a set time (1 minute by default) moves the tab to a standby page, which closes the site's player. When someone starts watching, it goes back to the same page and presses Play. Choose *Leave the video page*, *Pause the video* or *Keep playing* in the extension.
 - **Light on your PC.** When Chrome already sends H.264, the picture is passed straight through instead of being compressed again; only the sound is converted. Other formats use the bundled encoder.
-- **Sky Go channels built in** (0.7.1 test build). One click fills in all 61 Sky Go live channels, with their page addresses and programme guide matches.
+- **Sky Go channels built in** (new in 0.7.1). One click fills in all 61 Sky Go live channels, with their page addresses and programme guide matches.
 - **Starts by itself** (new in 0.7.0). Tohyee TV can open its own Chrome window and start your channels without a click, after a restart or after Windows is unlocked (Settings → Start broadcasting by itself).
 - **Stays at home.** Runs on your computer and home network: no accounts, no cloud, no router changes.
 - **Updates from the app.** The app checks GitHub when it starts and once a day. When there's a new version, click **Update now** and it downloads, checks and installs it, then opens again (Settings → Updates). Nothing installs until you click.
