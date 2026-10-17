@@ -1,7 +1,7 @@
 {
   "name": "tohyee-tv-desktop",
   "productName": "Tohyee TV",
-  "version": "0.7.0-alpha.3",
+  "version": "0.7.0",
   "description": "A Windows companion for broadcasting Chrome tabs to Plex",
   "author": "Tohyee TV contributors",
   "private": true,

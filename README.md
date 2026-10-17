@@ -12,7 +12,7 @@
 - **Only works when you're watching.** Nothing is sent until someone plays the channel in Plex. Several screens watching one channel share one stream.
 - **Standby frees your stream.** Many services limit how many devices can watch at once, and a paused video still counts. When nobody is watching a channel (including one nobody has watched yet), the extension pauses the video, then after a set time (1 minute by default) moves the tab to a standby page, which closes the site's player. When someone starts watching, it goes back to the same page and presses Play. Choose *Leave the video page*, *Pause the video* or *Keep playing* in the extension.
 - **Light on your PC.** When Chrome already sends H.264, the picture is passed straight through instead of being compressed again; only the sound is converted. Other formats use the bundled encoder.
-- **Starts by itself** (0.7 test builds). Tohyee TV can open its own Chrome window and start your channels without a click, after a restart or after Windows is unlocked (Settings → Start broadcasting by itself).
+- **Starts by itself** (new in 0.7.0). Tohyee TV can open its own Chrome window and start your channels without a click, after a restart or after Windows is unlocked (Settings → Start broadcasting by itself).
 - **Stays at home.** Runs on your computer and home network: no accounts, no cloud, no router changes.
 - **Updates from the app.** The app checks GitHub when it starts and once a day. When there's a new version, click **Update now** and it downloads, checks and installs it, then opens again (Settings → Updates). Nothing installs until you click.
 
@@ -25,7 +25,7 @@
 
 **Already have a DVR in Plex?** Using an XMLTV guide can mean recreating your existing DVR setup. Check Plex's instructions before changing anything.
 
-**Upgrading?** From 0.6.1 on, click **Update now** in the app. From 0.6.0 or earlier, quit the old app from its tray menu and run the new installer. Either way, reload the extension at `chrome://extensions` so it shows the new version.
+**Upgrading?** From 0.6.1 on, click **Update now** in the app. From 0.6.0 or earlier, quit the old app from its tray menu and run the new installer. Either way, reload the extension at `chrome://extensions` (upgrading to 0.7.0: remove it and load it again, because its ID changed) so it shows the new version.
 
 ### Requirements
 
@@ -56,7 +56,7 @@ Releases are published by `.github/workflows/windows-installer.yml` when the ver
 
 Tohyee TV isn't affiliated with Plex or Google. Plex and Chrome are trademarks of their owners.
 
-## Reusable tabs and real programme listings (0.7 test build)
+## Reusable tabs and real programme listings
 
 The Channels page can use a pool of 1–8 reusable Chrome tabs (default count: 3), independently of a lineup of up to 200 channels. Existing installations retain dedicated-tab mode until you choose Reusable tabs. Save each channel’s direct HTTPS video-page link, arm a different reusable slot in each Chrome tab, then tune through Plex. A watched slot is never taken away for another channel; additional viewers of the same channel share it.
 
