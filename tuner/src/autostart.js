@@ -3,6 +3,8 @@
 import {channelConfigs} from './config.js';
 import {escapeXml} from './hdhr.js';
 
+export const MAX_DEDICATED_TABS = 8;
+
 export function autostartPlan(config) {
   const withUrl = channelConfigs(config).filter(c => /^https:\/\//.test(c.url ?? ''));
   if (!withUrl.length) return {items: [], message: 'No channel has a video page address yet. Add one for each channel in the Tohyee TV app (Channels).'};
@@ -12,6 +14,9 @@ export function autostartPlan(config) {
     const home = `${new URL(withUrl[0].url).origin}/`;
     return {items: Array.from({length: config.tabCount ?? 3}, (_, i) => ({channelNumber: `@${i + 1}`, label: `Reusable tab ${i + 1}`, url: home}))};
   }
+  // One tab per channel only makes sense for a few channels (each open player
+  // can use one of the service's streams).
+  if (withUrl.length > MAX_DEDICATED_TABS) return {items: [], message: `${withUrl.length} channels have a video page address, too many to open a tab for each. Choose Reusable tabs in the Tohyee TV app (Channels), then start again.`};
   return {items: withUrl.map(c => ({channelNumber: c.channelNumber, label: `${c.channelNumber} ${c.channelName}`, url: c.url}))};
 }
 

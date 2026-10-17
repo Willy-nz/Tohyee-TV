@@ -1,3 +1,15 @@
+Tohyee TV 0.7.1: Sky Go's channels built in. Update from the app with **Update now**.
+
+## New: Sky Go channels in one click
+
+In **Channels**, click **Add Sky Go channels**. It fills in all 61 Sky Go live channels: Sky's channel numbers and names, each channel's Sky Go page address, and its programme guide match. Channels you already have are left alone. Remove any you don't want, click **Save channels**, and use **Reusable tabs** (the button selects it for you; click **Apply capture settings**). Turn on **Use NZXMLTV Sky listings** for the programme guide, then rescan channels and refresh the guide in Plex.
+
+The list comes from Sky Go's TV guide in October 2026. Sky can change its addresses; you can edit any channel.
+
+Also: with more than 8 channels, **Start broadcasting by itself** no longer opens one tab per channel. It asks you to choose Reusable tabs instead, because every open Sky Go player can use one of your streams.
+
+---
+
 Tohyee TV 0.7.0: start broadcasting by itself, reusable capture tabs, and real Sky NZ programme listings. FFmpeg and the runtime are included, so there's nothing else to install.
 
 ## Upgrading

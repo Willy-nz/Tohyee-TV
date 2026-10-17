@@ -69,3 +69,20 @@ $('guideEnabled').onchange=()=>action('guideEnabled',$('guideEnabled').checked);
 $('addGuideChannels').onclick=()=>{const rows=[...$('channelEditor').children],mapped=new Set(rows.map(r=>r.querySelector('select').value)),used=new Set(rows.map(r=>r.querySelector('input').value));let n=1;for(const g of state.guide?.channels??[]){if(mapped.has(g.id)||$('channelEditor').children.length>=200)continue;while(used.has(String(n)))n++;addChannelRow({channelNumber:String(n),channelName:g.name.slice(0,60),url:'',guideId:g.id});used.add(String(n));} $('channelSaveStatus').textContent='Review the channels, add their live-page links, then Save channels.';};
 
 $('autoBroadcast').addEventListener('change',()=>action('autoBroadcast',$('autoBroadcast').checked));
+
+// Fills the channel editor with Sky Go's channel list (sky-channels.js).
+$('addSkyChannels').onclick=()=>{
+ const editor=$('channelEditor'),rows=[...editor.children];
+ const value=(row,key)=>row.querySelector(`[data-key="${key}"]`)?.value.trim()??'';
+ // A fresh install's single placeholder channel (no address) makes way for the list.
+ if(rows.length===1&&!value(rows[0],'url')){rows[0].remove();rows.length=0;}
+ const numbers=new Set(rows.map(r=>value(r,'channelNumber'))),urls=new Set(rows.map(r=>value(r,'url')).filter(Boolean));
+ let added=0,skipped=0;
+ for(const c of window.SKY_GO_CHANNELS??[]){
+  if(numbers.has(c.channelNumber)||urls.has(c.url)){skipped++;continue;}
+  if(editor.children.length>=200)break;
+  addChannelRow(c);numbers.add(c.channelNumber);added++;
+ }
+ if(added&&$('captureMode').value!=='pool'){$('captureMode').value='pool';captureDirty=true;}
+ $('channelSaveStatus').textContent=`Added ${added} Sky Go channel${added===1?'':'s'}${skipped?` (${skipped} already there)`:''}. Click Save channels${captureDirty?', and Apply capture settings to use reusable tabs':''}. Turn on the Sky programme guide for listings.`;
+};
