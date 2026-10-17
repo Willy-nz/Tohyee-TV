@@ -1,5 +1,20 @@
 Windows test installer: reusable capture tabs and real Sky NZ programme listings. FFmpeg remains included.
 
+## New in alpha.3: start broadcasting by itself
+
+Tohyee TV can now start your channels without a click, for example after the computer restarts. It opens its own Chrome window (a separate Chrome profile, with its own sign-ins), started with Chrome's setting that lets the Tohyee TV extension capture tabs without being clicked. The window opens each channel's saved page (or, with reusable tabs, the website's front page) and starts broadcasting. It does this when the app starts, and again after Windows is unlocked or wakes up, reusing the tabs it opened before.
+
+Set up once, in **Settings → Start broadcasting by itself**:
+1. Tick **When Tohyee TV starts, open its Chrome window and start broadcasting**, and **Start Tohyee TV when I sign in to Windows**.
+2. Click **Set up Chrome window** and follow the page it opens: add the extension in that window (chrome://extensions → Developer mode → Load unpacked), sign in to your video website, and click **Arm this tab for Plex** once on that site so the extension may press Play and Pause.
+3. Make sure every channel has its video page address (Channels).
+
+Things to know:
+- Windows has to sign in by itself after a restart, and broadcasting stops while Windows is locked (it starts again when unlocked).
+- If the video website signs you out, sign in again in the Tohyee TV Chrome window.
+- The extension now has a fixed ID, so Chrome treats it as a new extension. In your usual Chrome, remove the old Tohyee TV extension and load it again, then set its options and site permission again.
+- Tested in Chromium (the open-source version of Chrome): no-click start, both capture modes, and starting again after a stop. Not yet tested in Google Chrome on Windows, or with Sky Go.
+
 ## Set up reusable tabs
 
 1. Quit the old app from the tray, install this version, then reload the Chrome extension at chrome://extensions. Confirm extension version 0.7.0.

@@ -219,6 +219,8 @@ async function command(message) {
   }
 }
 
+importScripts('autostart.js');
+
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message.target !== 'worker' || sender.id !== chrome.runtime.id) return;
   command(message).then(respond, error => respond({error: error.message}));
