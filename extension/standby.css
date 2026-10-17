@@ -6,7 +6,7 @@ p{color:#c9ccd5;line-height:1.6}
 .note{font-size:13px;color:#a9adb8}
 button{border:0;border-radius:7px;background:#efb438;color:#17181c;padding:12px 20px;font:inherit;font-weight:600;cursor:pointer;margin-top:8px}
 button:focus-visible{outline:3px solid #fff;outline-offset:4px}
-/* A small moving dot keeps the captured picture updating, so Plex never sees a frozen frame. */
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#efb438;vertical-align:middle;animation:pulse 1.6s ease-in-out infinite}
-@keyframes pulse{50%{opacity:.25}}
-@media (prefers-reduced-motion:reduce){.dot{animation-duration:4s}}
+/* Nothing on this page moves. A tab that's being captured redraws, and is
+   copied for the capture, every time anything moves; a pulsing dot cost about
+   a whole processor core across three idle tabs. Nobody watches this page. */
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#efb438;vertical-align:middle}

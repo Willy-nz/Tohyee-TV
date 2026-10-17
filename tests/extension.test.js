@@ -406,3 +406,13 @@ test('A reusable tab with no known address refuses a channel switch straight awa
   assert.match(reply.error, /web address isn’t known/);
   assert.equal(h.toWorker.filter(m => m.type === 'navigatePool').length, 0);
 });
+
+test('The standby page is completely still, so idle captured tabs cost almost nothing', () => {
+  const css = fs.readFileSync(new URL('../extension/standby.css', import.meta.url), 'utf8');
+  const html = fs.readFileSync(new URL('../extension/standby.html', import.meta.url), 'utf8');
+  const js = fs.readFileSync(new URL('../extension/standby.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /animation|@keyframes|transition/);
+  assert.doesNotMatch(html, /\.gif|<video|<marquee/i);
+  assert.doesNotMatch(js, /setInterval|requestAnimationFrame/);
+  for (const page of ['../tuner/src/autostart.js']) assert.doesNotMatch(fs.readFileSync(new URL(page, import.meta.url), 'utf8'), /animation|@keyframes/);
+});

@@ -1,3 +1,11 @@
+Tohyee TV 0.7.2: much less processor use while nothing is being watched.
+
+The Tohyee TV standby page had a small pulsing dot. While a tab is being captured, Chrome redraws it, and copies it for the capture, every time anything on it moves, so each idle tab kept Chrome busy all the time. In testing, three idle reusable tabs used about a whole processor core with the dot and about 7% without it. The standby page is now completely still.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.7.2**) and click **Arm this tab for Plex** in each tab again, or use **Start channels now** if you use automatic start.
+
+---
+
 Tohyee TV 0.7.1: Sky Go's channels built in. Update from the app with **Update now**.
 
 ## New: Sky Go channels in one click
