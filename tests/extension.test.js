@@ -63,7 +63,7 @@ test('Broadcasting connects to the tuner on this computer and says hello', async
   assert.equal(state.state, 'connecting');
   assert.equal(h.sockets[0].url, 'ws://127.0.0.1:34500/source/1');
   h.sockets[0].open();
-  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, idleAction: 'standby'});
+  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, idleAction: 'standby', frameRate: 50, captureSize: ''});
   assert.equal((await h.send('status')).state, 'ready');
 });
 
@@ -405,4 +405,41 @@ test('A reusable tab with no known address refuses a channel switch straight awa
   assert.deepEqual([reply.token, reply.ok], [5, false]);
   assert.match(reply.error, /web address isn’t known/);
   assert.equal(h.toWorker.filter(m => m.type === 'navigatePool').length, 0);
+});
+
+test('The standby page is completely still, so idle captured tabs cost almost nothing', () => {
+  const css = fs.readFileSync(new URL('../extension/standby.css', import.meta.url), 'utf8');
+  const html = fs.readFileSync(new URL('../extension/standby.html', import.meta.url), 'utf8');
+  const js = fs.readFileSync(new URL('../extension/standby.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /animation|@keyframes|transition/);
+  assert.doesNotMatch(html, /\.gif|<video|<marquee/i);
+  assert.doesNotMatch(js, /setInterval|requestAnimationFrame/);
+  for (const page of ['../tuner/src/autostart.js']) assert.doesNotMatch(fs.readFileSync(new URL(page, import.meta.url), 'utf8'), /animation|@keyframes/);
+});
+
+
+test('Capture matches Sky: 50 frames a second by default, 25 when chosen', async () => {
+  for (const [chosen, expected] of [[undefined, 50], [25, 25], [30, 50]]) {
+    let constraints;
+    const tracks = [new EventTarget(), new EventTarget()];
+    for (const t of tracks) { t.readyState = 'live'; t.stop = () => {}; t.getSettings = () => ({width: 1920, height: 1080}); }
+    const media = {getTracks: () => tracks, getAudioTracks: () => [tracks[1]], getVideoTracks: () => [tracks[0]]};
+    const h = harness({getUserMedia: async c => { constraints = c; return media; }});
+    await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, ...(chosen ? {frameRate: chosen} : {})});
+    assert.equal(constraints.video.mandatory.maxFrameRate, expected, `chosen ${chosen}`);
+    h.sockets[0].open();
+    const hello = h.sockets[0].json()[0];
+    assert.deepEqual([hello.frameRate, hello.captureSize], [expected, '1920×1080']);
+    assert.equal((await h.send('status')).sizeNote, '', 'a full-size tab needs no warning');
+  }
+});
+
+test('A small or wide tab is pointed out, because Plex gets a smaller picture', async () => {
+  for (const [w, h0, word] of [[1280, 600, 'small'], [1920, 937, 'not TV-shaped']]) {
+    const tracks = [new EventTarget(), new EventTarget()];
+    for (const t of tracks) { t.readyState = 'live'; t.stop = () => {}; t.getSettings = () => ({width: w, height: h0}); }
+    const h = harness({getUserMedia: async () => ({getTracks: () => tracks, getAudioTracks: () => [tracks[1]], getVideoTracks: () => [tracks[0]]})});
+    await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500});
+    assert.match((await h.send('status')).sizeNote, new RegExp(`${w}×${h0} picture because this tab is ${word}`));
+  }
 });

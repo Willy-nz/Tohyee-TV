@@ -3,7 +3,9 @@
 // offscreen page asks for (reload the tab, check its video is playing, move
 // it to the standby page and back).
 
-const DEFAULTS = {port: 34500, reloadOnWatch: true, idleAction: 'standby', standbySeconds: 60};
+const DEFAULTS = {port: 34500, reloadOnWatch: true, idleAction: 'standby', standbySeconds: 60, frameRate: 50};
+// Sky (and NZ TV generally) sends 50 frames a second; 25 is every second frame.
+const FRAME_RATES = [50, 25];
 const IDLE_ACTIONS = ['standby', 'pause', 'none'];
 const STANDBY_SECONDS = [30, 60, 120, 300, 600];
 let creating;
@@ -97,10 +99,10 @@ async function ensurePlaying(tabId) {
 async function broadcast(channelNumber) {
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   if (!tab?.id || !/^https?:/.test(tab.url ?? '')) throw new Error('Open the website tab you want to broadcast, then click Tohyee TV there.');
-  const {port, reloadOnWatch, idleAction, standbySeconds} = await settings();
+  const {port, reloadOnWatch, idleAction, standbySeconds, frameRate} = await settings();
   await ensureOffscreen();
   const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId: tab.id});
-  return toOffscreen({type: 'arm', channelNumber, streamId, tabId: tab.id, tabTitle: tab.title, tabUrl: tab.url, port, reloadOnWatch, idleAction, standbySeconds});
+  return toOffscreen({type: 'arm', channelNumber, streamId, tabId: tab.id, tabTitle: tab.title, tabUrl: tab.url, port, reloadOnWatch, idleAction, standbySeconds, frameRate});
 }
 
 // Leaves the video page for the standby page, closing the site's player.
@@ -171,6 +173,7 @@ async function command(message) {
       if (typeof message.reloadOnWatch === 'boolean') update.reloadOnWatch = message.reloadOnWatch;
       if (IDLE_ACTIONS.includes(message.idleAction)) update.idleAction = message.idleAction;
       if (STANDBY_SECONDS.includes(Number(message.standbySeconds))) update.standbySeconds = Number(message.standbySeconds);
+      if (FRAME_RATES.includes(Number(message.frameRate))) update.frameRate = Number(message.frameRate);
       if (Number.isInteger(message.port) && message.port > 0 && message.port < 65536) update.port = message.port;
       await chrome.storage.local.set(update);
       if (await hasOffscreen()) await toOffscreen({type: 'settings', ...update});

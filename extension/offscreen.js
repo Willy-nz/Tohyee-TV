@@ -52,7 +52,8 @@ const s = {
 function snapshot() {
   return {state: s.state, message: s.message, tabId: s.tabId, tabTitle: s.tabTitle, viewers: s.viewers, armed: s.armed,
     reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction, standbySeconds: s.standbySeconds,
-    inStandby: s.inStandby, returnUrl: s.inStandby ? s.returnUrl : '', port: s.port};
+    inStandby: s.inStandby, returnUrl: s.inStandby ? s.returnUrl : '', port: s.port,
+    frameRate: s.frameRate, captureSize: s.captureSize ?? '', sizeNote: s.armed ? (s.sizeNote ?? '') : ''};
 }
 
 function toWorker(message) {
@@ -71,18 +72,19 @@ function send(message) {
 }
 
 // ---- Capture ---------------------------------------------------------------
-async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch, idleAction = 'standby', standbySeconds = 60}) {
+async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch, idleAction = 'standby', standbySeconds = 60, frameRate = 50}) {
   disarm('Switching to a new tab.', true);
   s.armed = true;
   s.tabId = tabId; s.tabTitle = tabTitle ?? ''; s.port = port; s.reloadOnWatch = !!reloadOnWatch;
   s.idleAction = IDLE_ACTIONS.includes(idleAction) ? idleAction : 'standby';
   s.standbySeconds = Number(standbySeconds) > 0 ? Number(standbySeconds) : 60;
+  s.frameRate = [50, 25].includes(Number(frameRate)) ? Number(frameRate) : 50;
   s.returnUrl = /^https?:/.test(tabUrl) ? tabUrl : '';
   set('starting', 'Starting tab capture…');
   try {
     const media = await navigator.mediaDevices.getUserMedia({
       audio: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId}},
-      video: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId, maxFrameRate: 30, maxWidth: 1920, maxHeight: 1080}}
+      video: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId, maxFrameRate: s.frameRate, maxWidth: 1920, maxHeight: 1080}}
     });
     if (!s.armed || s.tabId !== tabId) { media.getTracks().forEach(t => t.stop()); return snapshot(); }
     s.stream = media;
@@ -93,6 +95,12 @@ async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch,
       s.audioOut.createMediaStreamSource(media).connect(s.audioOut.destination);
       s.audioOut.resume().catch(() => {});
     }
+    // Chrome shrinks the tab to fit 1920×1080 but never enlarges it, so a small
+    // or oddly shaped window gives Plex a smaller picture. Say so.
+    const {width = 0, height = 0} = media.getVideoTracks()[0].getSettings?.() ?? {};
+    s.captureSize = width && height ? `${width}×${height}` : '';
+    s.sizeNote = width && height && (width < 1800 || height < 1000)
+      ? `Plex gets a ${width}×${height} picture because this tab is ${width < 1800 && height < 1000 ? 'small' : 'not TV-shaped'}. For full 1080p, make the browser window bigger (or maximise it on a 1920×1080 screen).` : '';
     media.getVideoTracks()[0].addEventListener('ended', () => {
       if (s.stream === media) disarm('Broadcast stopped: the tab was closed or Chrome stopped sharing it.');
     });
@@ -145,7 +153,7 @@ function connect() {
   ws.onopen = () => {
     if (s.ws !== ws) return;
     s.retry = 0;
-    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction}));
+    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction, frameRate: s.frameRate, captureSize: s.captureSize}));
     set('ready', 'Ready. Waiting for someone to watch Tohyee TV in Plex.');
     idleFromStart();
   };

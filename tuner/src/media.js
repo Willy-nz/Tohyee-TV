@@ -9,7 +9,7 @@ export function canCopyVideo(mime) {
 
 // Wait for the recorder's format before selecting copy vs encode. No media
 // decoding is needed to make this choice; FFmpeg validates the actual stream.
-export function sourceEncoder({source, ffmpeg, compatibility = false, tsOffset = 0, onMode = () => {}, onCopyFailure = () => {}, spawnProcess = spawn, timeoutMs = 20000}) {
+export function sourceEncoder({source, ffmpeg, compatibility = false, tsOffset = 0, getFps = () => 30, onMode = () => {}, onCopyFailure = () => {}, spawnProcess = spawn, timeoutMs = 20000}) {
   const proxy = new EventEmitter();
   proxy.stdout = new PassThrough(); proxy.stderr = new PassThrough();
   const input = new PassThrough(); let child, ended = false, outputSeen = false, copy = false;
@@ -32,7 +32,7 @@ export function sourceEncoder({source, ffmpeg, compatibility = false, tsOffset =
     if (child || ended) return;
     copy = !compatibility && canCopyVideo(mime);
     onMode(copy ? 'Video passthrough · audio conversion' : 'Compatibility encoding');
-    child = spawnProcess(ffmpeg,chromeInputArgs({copyVideo:copy,tsOffset}),{stdio:['pipe','pipe','pipe'],windowsHide:true});
+    child = spawnProcess(ffmpeg,chromeInputArgs({copyVideo:copy,tsOffset,fps:[25,30,50].includes(Number(getFps()))?Number(getFps()):30}),{stdio:['pipe','pipe','pipe'],windowsHide:true});
     input.pipe(child.stdin);
     child.stdin.on('error',()=>{});
     child.stdout.on('data',data=>{lastOutput=Date.now();outputSeen=true;proxy.stdout.write(data);});

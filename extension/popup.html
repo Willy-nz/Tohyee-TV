@@ -4,6 +4,7 @@
 <p id="status" role="status">Loading…</p>
 <p id="tab" hidden></p>
 <p id="message" aria-live="polite"></p>
+<p id="sizeNote" class="note" hidden></p>
 <button id="broadcast">Arm this tab for Plex</button>
 <button id="stop" class="secondary" hidden>Stop broadcasting</button>
 <label class="option"><input type="checkbox" id="reload"> Reload the tab when someone starts watching in Plex</label>
@@ -17,6 +18,8 @@
 <select id="standbySeconds">
 <option value="30">30 seconds</option><option value="60">1 minute</option><option value="120">2 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option>
 </select></label>
+<label class="option stack" for="frameRate">Smoothness
+<select id="frameRate"><option value="50">50 frames a second (smoothest, like Sky)</option><option value="25">25 frames a second (lighter on the computer)</option></select></label>
 <p class="note">Some services, like Sky Go, limit how many devices can watch at once, and a paused video still counts. Leaving the page closes the player; Tohyee TV pauses straight away, leaves after the time above, and goes back and presses Play when someone starts watching. Chrome will ask once for permission to press Play and Pause on this site.</p>
 <details><summary>Advanced</summary><label class="option">Tuner port <input type="number" id="port" min="1" max="65535"></label><button id="save" class="secondary">Save</button></details>
 <p class="note">In reusable-tab mode, open three tabs on the same video website and arm each as a different reusable tab. Plex chooses which saved channel each tab plays.</p>
