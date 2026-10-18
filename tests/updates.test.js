@@ -150,3 +150,11 @@ test('Only this project’s own release downloads are fetched', async () => {
 test('The installer runs silently, keeps the install folder and reopens the app', () => {
   assert.deepEqual(INSTALL_ARGS, ['/S', '--updated', '--force-run']);
 });
+
+test('The Windows start-up box stays ticked: it is saved and checked with the same arguments', () => {
+  const main = fs.readFileSync(new URL('../desktop/main.cjs', import.meta.url), 'utf8');
+  assert.match(main, /const LOGIN_ITEM=\{args:\['--hidden'\]\};/);
+  assert.match(main, /app\.setLoginItemSettings\(\{openAtLogin:prefs\.startup,\.\.\.LOGIN_ITEM\}\)/);
+  assert.doesNotMatch(main, /getLoginItemSettings\(\)/, 'checking without the arguments always says "off" on Windows');
+  assert.match(main, /getLoginItemSettings\(LOGIN_ITEM\)/);
+});

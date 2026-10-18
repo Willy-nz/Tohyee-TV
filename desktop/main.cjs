@@ -16,13 +16,16 @@ const updateDir=()=>path.join(app.getPath('temp'),'tohyee-tv-update');
 // Someone on a test build gets newer test builds unless they say otherwise.
 const testBuilds=()=>prefs.testBuilds??/-/.test(app.getVersion());
 const DAY=24*60*60*1000;
+// Windows start-up entry. Windows only reports it as on when asked with the same
+// arguments it was saved with, so set and check it with exactly these.
+const LOGIN_ITEM={args:['--hidden']};
 const resources = app.isPackaged ? process.resourcesPath : path.resolve(__dirname,'..');
 const icon = path.join(resources,'extension','spitz-32.png');
 const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
 // Checks GitHub for a newer installer. Automatic checks tell the person once
@@ -162,7 +165,7 @@ ipcMain.handle('action',async(event,name,value)=>{
     case 'restart':return restart(false);
     case 'test':return restart(true);
     case 'show':show();break;
-    case 'startup':prefs.startup=!!value;app.setLoginItemSettings({openAtLogin:prefs.startup,args:['--hidden']});break;
+    case 'startup':prefs.startup=!!value;app.setLoginItemSettings({openAtLogin:prefs.startup,...LOGIN_ITEM});break;
     case 'network':prefs.lan=!!value;config.listenAddress=prefs.lan?'0.0.0.0':'127.0.0.1';fs.writeFileSync(configPath,JSON.stringify(config,null,2));await restart();break;
     case 'encoding':if(!['auto','encode'].includes(value))throw new Error('Unknown quality mode');config.videoMode=value;fs.writeFileSync(configPath,JSON.stringify(config,null,2));await restart();break;
     case 'extension':await shell.openPath(extensionPath);break;

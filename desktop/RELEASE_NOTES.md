@@ -1,3 +1,9 @@
+Tohyee TV 0.7.5: the "Start Tohyee TV when I sign in to Windows" box works again.
+
+On Windows the box un-ticked itself straight after you ticked it, so it looked as if it couldn't be clicked. Windows only reports the start-up entry as on when asked with the same settings it was saved with, and Tohyee TV wasn't asking that way. It does now. Update with **Update now**, then tick the box in **Settings → Windows startup**.
+
+---
+
 Tohyee TV 0.7.4: full 1080p on a computer with no monitor.
 
 ## Keep the screen at 1920×1080
