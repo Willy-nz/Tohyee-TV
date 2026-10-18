@@ -26,6 +26,11 @@ function chromeArgs({profile, port, setup = false}) {
     '--no-first-run',
     '--no-default-browser-check',
     '--autoplay-policy=no-user-gesture-required',
+    // Kiosk: only the page, no tab strip or address bar, so each channel tab is
+    // the whole screen (1920×1080 when the screen is). Plain full screen still
+    // left Chrome's bar on screen in testing (tabs were 1920×975). Setting up
+    // needs the address bar and the extension icon, so not then.
+    ...(setup ? [] : ['--kiosk']),
     `http://127.0.0.1:${Number(port)}/autostart${setup ? '?setup=1' : ''}`
   ];
 }
@@ -37,7 +42,7 @@ function launchChrome({profile, port, setup = false, chrome = findChrome(), spaw
     const child = spawnFn(chrome, chromeArgs({profile, port, setup}), {detached: true, stdio: 'ignore'});
     child.on?.('error', () => {});
     child.unref?.();
-    return {ok: true};
+    return {ok: true, child};
   } catch (error) {
     return {ok: false, error: `Couldn’t open Chrome: ${error.message}`};
   }

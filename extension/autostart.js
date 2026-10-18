@@ -39,7 +39,9 @@ async function waitForLoad(tabId, timeoutMs = 45000) {
 // sends 1080p, its player fills a TV-shaped page, and Chrome never enlarges a
 // smaller tab. Returns the page size Chrome actually gave.
 async function sizeWindow(windowId, tabId) {
-  if ((await chrome.windows.get(windowId)).state !== 'normal') await chrome.windows.update(windowId, {state: 'normal'});
+  const state = (await chrome.windows.get(windowId)).state;
+  if (state === 'fullscreen') { const t = await chrome.tabs.get(tabId); return t.width ? {width: t.width, height: t.height} : null; } // full screen: the tab is the screen
+  if (state !== 'normal') await chrome.windows.update(windowId, {state: 'normal'});
   const win = await chrome.windows.get(windowId), tab = await chrome.tabs.get(tabId);
   if (!tab.width || !tab.height) return null;
   if (tab.width !== 1920 || tab.height !== 1080) await chrome.windows.update(windowId, {width: win.width - tab.width + 1920, height: win.height - tab.height + 1080});
@@ -69,7 +71,7 @@ async function autostart(pageTabId) {
 
     try {
       const size = await sizeWindow(page.windowId, pageTabId);
-      if (size && (size.width < 1800 || size.height < 1000)) await report(pageTabId, `This screen only fits a ${size.width}×${size.height} page, so Plex gets a smaller picture than Sky's 1080p. A 1920×1080 (or bigger) screen setting fixes that.`, 'warn');
+      if (size && (size.width < 1800 || size.height < 1000)) await report(pageTabId, `This screen only fits a ${size.width}×${size.height} page, so Plex gets a smaller picture than Sky's 1080p. In the Tohyee TV app, tick Keep this computer's screen at 1920×1080 (Settings), or set the screen to 1920×1080 in Windows.`, 'warn');
       else if (size) await report(pageTabId, `Window sized for full 1080p (${size.width}×${size.height}).`);
     } catch { /* keep the window as it is */ }
     const {autoTabs = {}} = await chrome.storage.local.get('autoTabs');
@@ -94,7 +96,7 @@ async function autostart(pageTabId) {
         let streamId;
         try { streamId = await chrome.tabCapture.getMediaStreamId({targetTabId: tab.id}); }
         catch (error) { throw new Error(`Chrome didn’t allow capture without a click (${error.message}). Start this window from the Tohyee TV app.`); }
-        const result = await toOffscreen({type: 'arm', channelNumber: item.channelNumber, streamId, tabId: tab.id, tabTitle: tab.title || label, tabUrl: item.url, port, reloadOnWatch, idleAction, standbySeconds, frameRate});
+        const result = await toOffscreen({type: 'arm', channelNumber: item.channelNumber, streamId, tabId: tab.id, tabTitle: tab.title || label, tabUrl: item.url, port, reloadOnWatch, idleAction, standbySeconds, frameRate, tabWidth: tab.width, tabHeight: tab.height});
         if (result?.error) throw new Error(result.error);
         const permitted = await chrome.permissions.contains({origins: [`${origin}/*`]});
         await report(pageTabId, `${label}: broadcasting.${permitted ? '' : ' Play and Pause aren’t allowed on this site yet: click the Tohyee TV icon on that tab and choose Arm this tab for Plex once to allow them.'}`, permitted ? 'ok' : 'warn');

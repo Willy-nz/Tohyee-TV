@@ -72,7 +72,7 @@ function send(message) {
 }
 
 // ---- Capture ---------------------------------------------------------------
-async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch, idleAction = 'standby', standbySeconds = 60, frameRate = 50}) {
+async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch, idleAction = 'standby', standbySeconds = 60, frameRate = 50, tabWidth = 0, tabHeight = 0}) {
   disarm('Switching to a new tab.', true);
   s.armed = true;
   s.tabId = tabId; s.tabTitle = tabTitle ?? ''; s.port = port; s.reloadOnWatch = !!reloadOnWatch;
@@ -95,9 +95,14 @@ async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch,
       s.audioOut.createMediaStreamSource(media).connect(s.audioOut.destination);
       s.audioOut.resume().catch(() => {});
     }
-    // Chrome shrinks the tab to fit 1920×1080 but never enlarges it, so a small
-    // or oddly shaped window gives Plex a smaller picture. Say so.
-    const {width = 0, height = 0} = media.getVideoTracks()[0].getSettings?.() ?? {};
+    // Chrome shrinks a big tab to fit 1920×1080, but a smaller tab is padded
+    // with black borders, not enlarged, and the capture still reports
+    // 1920×1080. So judge by the tab's own size (in real pixels), which the
+    // worker read when the broadcast started.
+    const scale = Number(globalThis.devicePixelRatio) || 1;
+    const real = tabWidth && tabHeight ? {width: Math.round(tabWidth * scale), height: Math.round(tabHeight * scale)} : (media.getVideoTracks()[0].getSettings?.() ?? {});
+    const fit = real.width && real.height ? Math.min(1, 1920 / real.width, 1080 / real.height) : 1;
+    const width = Math.round((real.width ?? 0) * fit), height = Math.round((real.height ?? 0) * fit);
     s.captureSize = width && height ? `${width}×${height}` : '';
     s.sizeNote = width && height && (width < 1800 || height < 1000)
       ? `Plex gets a ${width}×${height} picture because this tab is ${width < 1800 && height < 1000 ? 'small' : 'not TV-shaped'}. For full 1080p, make the browser window bigger (or maximise it on a 1920×1080 screen).` : '';
