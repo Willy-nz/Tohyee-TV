@@ -40,7 +40,7 @@ function sourceText(source) {
 }
 
 // `source` is the Chrome SourceHub, or null when playing the test pattern.
-export function createTunerServer({config, broadcaster, source = null, channels, pool, guide, log = () => {}}) {
+export function createTunerServer({config, broadcaster, source = null, channels, pool, guide, log = () => {}, onAutostartDone = () => {}}) {
   const fallbackBase = `http://127.0.0.1:${config.port}`;
   channels ??= new Map([[config.channelNumber,{config,broadcaster,source}]]);
   const server = createServer((req, res) => {
@@ -67,6 +67,14 @@ export function createTunerServer({config, broadcaster, source = null, channels,
     if (method !== 'GET' && method !== 'HEAD') return send(res, 405, 'text/plain; charset=utf-8', 'Method not allowed.\n');
 
     switch (path) {
+      case '/autostart/done': {
+        // The extension says it has finished starting the channels, so the app
+        // can move the Chrome window out of the way. Only from this computer.
+        if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return send(res, 403, 'text/plain', 'Forbidden');
+        const q = new URL(req.url, 'http://x').searchParams, count = v => Math.max(0, Math.min(1000, Math.trunc(Number(v)) || 0));
+        onAutostartDone({started: count(q.get('started')), total: count(q.get('total'))});
+        return send(res, 204, 'text/plain', '');
+      }
       case '/autostart.json':
         return send(res,200,'application/json',JSON.stringify(autostartPlan(config)));
       case '/autostart':

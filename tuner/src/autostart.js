@@ -30,7 +30,8 @@ export function autostartPage(setup = false) {
 <li>On that tab, click the Tohyee TV icon and choose <b>Arm this tab for Plex</b> once. That lets the extension press Play and Pause on the site. You can stop it again afterwards.</li>
 </ol>
 <p>From then on, when Tohyee TV starts it opens this window and starts your channels by itself.</p>`
-    : `<h1>Starting your channels…</h1><p>Tohyee TV is opening your channel tabs. You can minimise this window, but don’t close it.</p>`;
+    : `<h1>Starting your channels…</h1><p>Tohyee TV is opening your channel tabs. Once they’ve started, Tohyee TV moves this window out of the way by itself. Don’t close it: it’s what sends your channels to Plex.</p>
+<p>To get back to your desktop or the Tohyee TV app any time, press <b>Alt+Tab</b>. To see extensions, click <b>Set up Chrome window</b> in Tohyee TV.</p>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeXml(setup ? 'Tohyee TV · set up' : 'Tohyee TV · starting')}</title>
 <style>body{font:16px/1.5 system-ui,sans-serif;background:#17181c;color:#eee;max-width:720px;margin:40px auto;padding:0 16px}h1{color:#efb438}li.ok{color:#9be29b}li.warn{color:#efb438}li.error{color:#ff9a8a}code,b{color:#fff}</style></head>
 <body>${intro}<ul id="log"></ul></body></html>`;

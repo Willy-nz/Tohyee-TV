@@ -5,6 +5,7 @@ const {spawn} = require('node:child_process');
 const updates = require('./updates.cjs');
 const autostart = require('./autostart.cjs');
 const display = require('./display.cjs');
+const chromewin = require('./chromewin.cjs');
 let guide,win,tray,indicator,runtime,config,configPath,prefs,prefsPath,quitting=false,closing=false;
 const logs=[]; let lastLive=false, problem='', mode='chrome', changing=false;
 // Update check state: status idle | checking | available | current | error
@@ -16,13 +17,16 @@ const updateDir=()=>path.join(app.getPath('temp'),'tohyee-tv-update');
 // Someone on a test build gets newer test builds unless they say otherwise.
 const testBuilds=()=>prefs.testBuilds??/-/.test(app.getVersion());
 const DAY=24*60*60*1000;
+// Windows start-up entry. Windows only reports it as on when asked with the same
+// arguments it was saved with, so set and check it with exactly these.
+const LOGIN_ITEM={args:['--hidden']};
 const resources = app.isPackaged ? process.resourcesPath : path.resolve(__dirname,'..');
 const icon = path.join(resources,'extension','spitz-32.png');
 const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings().openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,hideChrome:prefs.hideChrome!==false,chromeHidden,extensionVersion:extensionVersion(),fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
 // Checks GitHub for a newer installer. Automatic checks tell the person once
@@ -90,14 +94,75 @@ function watchScreen(){
   setInterval(()=>checkScreen().catch(()=>{}),5*60*1000).unref();
 }
 let chromeChild=null;
+const chromeProfile=()=>path.join(app.getPath('userData'),'chrome-profile');
 async function openChromeWindow(setup=false){
+  stopChromeWatch();
   // A kiosk window (normal start) has no address bar or extension icon, and
   // Chrome would open the setup page inside it. Close it first.
   if(setup&&chromeChild&&chromeChild.exitCode===null){try{chromeChild.kill();}catch{}await new Promise(r=>setTimeout(r,2500));}
-  const result=autostart.launchChrome({profile:path.join(app.getPath('userData'),'chrome-profile'),port:config.port,setup});
+  const result=autostart.launchChrome({profile:chromeProfile(),port:config.port,setup});
   if(result.child){chromeChild=result.child;chromeChild.on?.('exit',()=>{if(chromeChild===result.child)chromeChild=null;});}
   if(!result.ok){log(result.error);if(setup)throw new Error(result.error);return;}
   log(setup?'Opened the Tohyee TV Chrome window for setup.':'Opened the Tohyee TV Chrome window to start broadcasting.');
+  if(!setup)afterChannelsStart(Date.now());
+}
+// ---- Moving the full-screen Chrome window out of the way (chromewin.cjs) ----
+// Once the extension says the channels have started (or after 90 seconds, for
+// an older extension that doesn't say), hide the Chrome window, or if hiding
+// is off, bring Tohyee TV in front of it. While hidden, watch for a channel
+// someone is watching that gets no picture: then Windows has stopped Chrome
+// drawing while hidden, so bring the window back and stop hiding it.
+let chromeHidden=false,startTimer=null,watchTimer=null;
+const stallWatch=new chromewin.StallWatch({limitMs:35000});
+function stopChromeWatch(){clearInterval(startTimer);clearInterval(watchTimer);startTimer=watchTimer=null;chromeHidden=false;stallWatch.reset();}
+function afterChannelsStart(launchedAt){
+  clearInterval(startTimer);
+  startTimer=setInterval(async()=>{
+    const done=runtime?.autostartDone?.(), waited=Date.now()-launchedAt;
+    if(!(done?.at>=launchedAt||(waited>90000&&runtime?.status().source.connected)||waited>180000))return;
+    clearInterval(startTimer);startTimer=null;
+    if(done?.at>=launchedAt&&!done.started)return show(); // nothing started: leave the page showing what went wrong, and show the app
+    if(prefs.hideChrome!==false)await hideChrome();else show();
+  },2000);
+  startTimer.unref?.();
+}
+async function hideChrome(){
+  const outcome=await chromewin.setChromeWindow('hide',{profile:chromeProfile()});
+  if(outcome.count){chromeHidden=true;log('Moved the Tohyee TV Chrome window out of the way (minimised). Your channels keep broadcasting.');watchHiddenChrome();return true;}
+  log(outcome.error?`Couldn’t minimise the Chrome window: ${outcome.error}.`:'Couldn’t find the Tohyee TV Chrome window to minimise.');
+  show();return false;
+}
+async function showChrome(){
+  stopChromeWatch();
+  const outcome=await chromewin.setChromeWindow('show',{profile:chromeProfile()});
+  if(!outcome.count)throw new Error(outcome.error?`Couldn’t bring the Chrome window back: ${outcome.error}.`:'The Tohyee TV Chrome window isn’t open. Click Start channels now.');
+}
+function watchHiddenChrome(){
+  clearInterval(watchTimer);stallWatch.reset();let restoredAt=0;
+  watchTimer=setInterval(async()=>{
+    if(!runtime?.flow)return;
+    const stalled=stallWatch.check(runtime.flow());
+    if(!stalled.length)return;
+    if(!restoredAt){
+      restoredAt=Date.now();chromeHidden=false;stallWatch.reset();
+      prefs.hideChrome=false;savePrefs();
+      log(`No picture came from Chrome for ${stalled.join(', ')} while its window was minimised. On this computer Windows pauses a minimised Chrome window, so Tohyee TV has brought it back and won’t hide it again. (Settings → Start broadcasting by itself.)`);
+      notify('Tohyee TV brought its Chrome window back','Windows paused the picture while Chrome was minimised. If the channel doesn’t start, tune it again in Plex.');
+      await chromewin.setChromeWindow('show',{profile:chromeProfile()});show();
+    } else {
+      // Still nothing after bringing it back: start Chrome's window again.
+      log('Still no picture from Chrome. Starting the Tohyee TV Chrome window again.');
+      clearInterval(watchTimer);watchTimer=null;runtime.stopBroadcast();
+      setTimeout(()=>openChromeWindow(false).catch(()=>{}),4000);
+    }
+  },3000);
+  watchTimer.unref?.();
+}
+// The oldest extension version among the connected Chrome tabs, or ''.
+function extensionVersion(){
+  const s=runtime?.status();if(!s)return '';
+  const versions=[...(s.slots??[]),...(s.channels??[]).map(c=>c.source??{})].filter(x=>x.connected).map(x=>String(x.version??'')).filter(v=>updates.parseVersion(v));
+  return versions.sort(updates.compareVersions)[0]??'';
 }
 function openUpdate(){if(update.status==='available'&&updates.isReleasePage(update.update.url))return shell.openExternal(update.update.url);}
 function notify(title,body){if(Notification.isSupported())new Notification({title,body,icon}).show();}
@@ -144,6 +209,9 @@ ipcMain.handle('action',async(event,name,value)=>{
     }
     case 'guideEnabled':config.guideEnabled=!!value;fs.writeFileSync(configPath,JSON.stringify(config,null,2));if(value)guide.refresh();break;
     case 'autoBroadcast':prefs.autoBroadcast=!!value;break;
+    case 'hideChrome':prefs.hideChrome=!!value;break;
+    case 'showChrome':await showChrome();break;
+    case 'hideChromeNow':if(!(await hideChrome()))throw new Error('Couldn’t minimise the Tohyee TV Chrome window. Is it open?');break;
     case 'fixScreen':prefs.fixScreen=!!value;savePrefs();if(prefs.fixScreen)await checkScreen(true);break;
     case 'fixScreenNow':await checkScreen(true);break;
     case 'chromeSetup':await openChromeWindow(true);break;
@@ -162,7 +230,7 @@ ipcMain.handle('action',async(event,name,value)=>{
     case 'restart':return restart(false);
     case 'test':return restart(true);
     case 'show':show();break;
-    case 'startup':prefs.startup=!!value;app.setLoginItemSettings({openAtLogin:prefs.startup,args:['--hidden']});break;
+    case 'startup':prefs.startup=!!value;app.setLoginItemSettings({openAtLogin:prefs.startup,...LOGIN_ITEM});break;
     case 'network':prefs.lan=!!value;config.listenAddress=prefs.lan?'0.0.0.0':'127.0.0.1';fs.writeFileSync(configPath,JSON.stringify(config,null,2));await restart();break;
     case 'encoding':if(!['auto','encode'].includes(value))throw new Error('Unknown quality mode');config.videoMode=value;fs.writeFileSync(configPath,JSON.stringify(config,null,2));await restart();break;
     case 'extension':await shell.openPath(extensionPath);break;

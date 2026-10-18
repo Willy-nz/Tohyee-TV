@@ -61,7 +61,13 @@ async function autostart(pageTabId) {
   try {
     const {port, reloadOnWatch, idleAction, standbySeconds, frameRate} = await settings();
     const page = await chrome.tabs.get(pageTabId);
-    if (new URL(page.url).searchParams.has('setup')) return; // setting up: the person does it by hand
+    if (new URL(page.url).searchParams.has('setup')) {
+      // Setting up: the person does it by hand. The extension is already here,
+      // so open its page at chrome://extensions, where its version shows.
+      await report(pageTabId, `The Tohyee TV extension is already added (version ${chrome.runtime.getManifest().version}). Its page at chrome://extensions is open in the next tab: after updating Tohyee TV, click its reload arrow there.`, 'ok');
+      await chrome.tabs.create({url: `chrome://extensions/?id=${chrome.runtime.id}`, windowId: page.windowId, active: true}).catch(() => {});
+      return;
+    }
     let plan;
     try {
       const response = await fetch(`http://127.0.0.1:${port}/autostart.json`, {signal: AbortSignal.timeout(5000)});
@@ -105,7 +111,9 @@ async function autostart(pageTabId) {
         await report(pageTabId, `${label}: ${error.message}`, 'error');
       }
     }
-    await report(pageTabId, `Started ${started} of ${plan.items.length}. You can leave this window open (minimised is fine).`, started === plan.items.length ? 'ok' : 'warn');
+    await report(pageTabId, `Started ${started} of ${plan.items.length}. Leave this window open: Tohyee TV moves it out of the way.`, started === plan.items.length ? 'ok' : 'warn');
+    // Tell the app, so it can hide this window (or bring itself in front of it).
+    await fetch(`http://127.0.0.1:${port}/autostart/done?started=${started}&total=${plan.items.length}`, {signal: AbortSignal.timeout(5000)}).catch(() => {});
   } finally {
     autostarting = false;
   }
