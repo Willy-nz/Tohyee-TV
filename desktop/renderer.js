@@ -7,7 +7,7 @@ function render(s){state=s;$('version').textContent=`Version ${s.version}${/-/.t
  $('source').textContent=s.mode==='test'?'Built-in test picture':`${s.channels?.length||1} channel(s) configured`;renderChannelStatus(s);renderPool(s);if(!editorLoaded){editChannels(s.configuredChannels);editorLoaded=true;}
  $('detail').textContent=s.source?.message||'Open the Chrome extension on your chosen tab to begin.';
  $('connections').textContent=s.connections||0;$('encoding').textContent=s.encoding||'Waiting';$('logs').textContent=s.logs.join('\n');
- if(!busy){$('startup').checked=s.startup;$('lan').checked=s.lan;$('videoMode').value=s.videoMode;$('updateChecks').checked=s.updateChecks;$('autoBroadcast').checked=s.autoBroadcast;$('fixScreen').checked=s.fixScreen;$('testBuilds').checked=s.testBuilds;}
+ if(!busy){$('startup').checked=s.startup;$('lan').checked=s.lan;$('videoMode').value=s.videoMode;$('updateChecks').checked=s.updateChecks;$('autoBroadcast').checked=s.autoBroadcast;$('hideChrome').checked=s.hideChrome;$('fixScreen').checked=s.fixScreen;$('testBuilds').checked=s.testBuilds;}
  const hosts=s.lan?s.addresses:['127.0.0.1'];if(!hosts.length)hosts.push('127.0.0.1');const old=$('host').value;
  if(JSON.stringify([...$('host').options].map(o=>o.value))!==JSON.stringify(hosts)){$('host').replaceChildren(...hosts.map(h=>new Option(h,h)));if(hosts.includes(old))$('host').value=old;}
  addresses();
@@ -15,7 +15,7 @@ function render(s){state=s;$('version').textContent=`Version ${s.version}${/-/.t
 async function action(name,value){if(busy)return;busy=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{render(await window.tohyee.action(name,value));}catch(e){$('notice').hidden=false;$('notice').textContent=e.message;}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
 document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>action(b.dataset.action)));
-$('startup').addEventListener('change',()=>action('startup',$('startup').checked));$('lan').addEventListener('change',()=>action('network',$('lan').checked));$('videoMode').addEventListener('change',()=>action('encoding',$('videoMode').value));$('host').addEventListener('change',addresses);$('updateChecks').addEventListener('change',()=>action('updateChecks',$('updateChecks').checked));$('testBuilds').addEventListener('change',()=>action('testBuilds',$('testBuilds').checked));
+$('startup').addEventListener('change',()=>action('startup',$('startup').checked));$('lan').addEventListener('change',()=>action('network',$('lan').checked));$('videoMode').addEventListener('change',()=>action('encoding',$('videoMode').value));$('host').addEventListener('change',addresses);$('updateChecks').addEventListener('change',()=>action('updateChecks',$('updateChecks').checked));$('testBuilds').addEventListener('change',()=>action('testBuilds',$('testBuilds').checked));$('hideChrome').addEventListener('change',()=>action('hideChrome',$('hideChrome').checked));
 $('copyTuner').addEventListener('click',()=>action('copy',{host:$('host').value,guide:false}));$('copyGuide').addEventListener('click',()=>action('copy',{host:$('host').value,guide:true}));
 async function poll(){if(!busy)try{render(await window.tohyee.status());}catch(e){$('notice').hidden=false;$('notice').textContent=e.message;}}
 poll();setInterval(poll,1000);
@@ -47,6 +47,11 @@ function renderUpdates(s){
   $('updateNote').hidden=!installable||working;
   $('updateNote').textContent=s.source?.connected?'Updating stops your broadcasts. Click Broadcast again in each Chrome tab once it reopens.':'Tohyee TV will close for a moment, update and open again.';
  }
+ // Chrome keeps running its old copy of the extension until it's reloaded. Old
+ // copies miss newer fixes (before 0.7.2: only 30 frames a second).
+ const older=olderVersion(s.extensionVersion,s.version);
+ $('extensionBanner').hidden=!older;
+ if(older)$('extensionText').textContent=`Chrome is still running version ${s.extensionVersion} of the Tohyee TV extension, older than this app (${s.version}), so it’s missing newer fixes. Click Set up Chrome window: on the extension’s page that opens, click its reload arrow. Then click Start channels now (Settings).`;
  $('upgradeBanner').hidden=!s.upgradedFrom;
  if(s.upgradedFrom)$('upgradeText').textContent=`Updated from ${s.upgradedFrom} to ${s.version}. Reload the Tohyee TV extension at chrome://extensions (click its reload arrow) so Chrome uses the new version.`;
  const when=u.checkedAt?` Last checked ${new Date(u.checkedAt).toLocaleString()}.`:'';
@@ -88,3 +93,6 @@ $('addSkyChannels').onclick=()=>{
  $('channelSaveStatus').textContent=`Added ${added} Sky Go channel${added===1?'':'s'}${skipped?` (${skipped} already there)`:''}. Click Save channels${captureDirty?', and Apply capture settings to use reusable tabs':''}. Turn on the Sky programme guide for listings.`;
 };
 $('fixScreen').addEventListener('change',()=>action('fixScreen',$('fixScreen').checked));
+
+// Whether version a (e.g. "0.7.1") is older than b, comparing only the numbers.
+function olderVersion(a,b){const p=v=>(/^(\d+)\.(\d+)\.(\d+)/.exec(String(v||''))||[]).slice(1).map(Number);const x=p(a),y=p(b);if(x.length<3||y.length<3)return false;for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i];return false;}

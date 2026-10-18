@@ -35,7 +35,8 @@ export async function startRuntime({config, ffmpeg, log = () => {}, testPattern 
   channels.set(channel.channelNumber, {config:channel,source,broadcaster,status:()=>({channelNumber:channel.channelNumber,channelName:channel.channelName,programmeTitle:channel.programmeTitle,connections:broadcaster.clients.size,encoding:testPattern?'Test picture':mode,source:source?.status() ?? {connected:false}})});
   }
   const first = channels.values().next().value;
-  const server = createTunerServer({config,channels,log,pool,guide});
+  let autostartDone = null;
+  const server = createTunerServer({config,channels,log,pool,guide,onAutostartDone:result=>{autostartDone={...result,at:Date.now()};log(`Chrome started ${result.started} of ${result.total} channel tab(s).`);}});
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(config.port,config.listenAddress,resolve);});
   server.on('error',error=>log(`Tuner error: ${error.message}`));
   const stop = number => {
@@ -45,6 +46,12 @@ export async function startRuntime({config, ffmpeg, log = () => {}, testPattern 
   return {config,channels,pool,source:first.source,broadcaster:first.broadcaster,server,
     status:()=>{const all=[...channels.values()].map(c=>c.status());return {running:true,slots:pool?.status(),channels:all,connections:all.reduce((n,c)=>n+c.connections,0),encoding:first.status().encoding,source:{connected:(pool?pool.status().some(s=>s.connected):all.some(c=>c.source.connected))}};},
     stopBroadcast:stop,
+    // When the extension last finished starting channels: {started, total, at} or null.
+    autostartDone:()=>autostartDone,
+    // For each tab someone is watching: how many viewers and how many bytes
+    // Chrome has sent so far (the app uses it to notice a picture that stopped).
+    flow:()=>pool?pool.slots.filter(s=>s.lease).map(s=>({key:`tab ${s.id}`,viewers:s.lease.viewers,bytes:s.hub.receivedBytes}))
+      :[...channels.values()].filter(c=>c.source).map(c=>({key:`channel ${c.config.channelNumber}`,viewers:c.source.viewers,bytes:c.source.receivedBytes})),
     close:()=>{stop();pool?.close();server.closeAllConnections?.();return new Promise(resolve=>server.close(resolve));}
   };
 }

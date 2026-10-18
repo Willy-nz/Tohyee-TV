@@ -1,6 +1,20 @@
-Tohyee TV 0.7.5: the "Start Tohyee TV when I sign in to Windows" box works again.
+Tohyee TV 0.7.5: the Chrome window gets out of your way.
 
-On Windows the box un-ticked itself straight after you ticked it, so it looked as if it couldn't be clicked. Windows only reports the start-up entry as on when asked with the same settings it was saved with, and Tohyee TV wasn't asking that way. It does now. Update with **Update now**, then tick the box in **Settings → Windows startup**.
+## The full-screen Chrome window minimises itself
+
+Once your channels have started, Tohyee TV now minimises its full-screen Chrome window, so you get your desktop back. Your channels keep broadcasting. If Windows ever pauses the picture while that window is minimised, Tohyee TV notices (someone is watching but no picture is arriving), brings the window back, and stops minimising it from then on. You can turn this off in **Settings → Start broadcasting by itself**. With it off, the Tohyee TV app comes in front of the Chrome window instead. There are also **Show Chrome window** and **Minimise Chrome window** buttons, and **Alt+Tab** always switches between them.
+
+## Checking the extension is easier
+
+**Set up Chrome window** now opens the extension's page at `chrome://extensions` straight away, showing its version and its reload arrow.
+
+The app also warns you when Chrome is still running an older copy of the extension than the app. Chrome keeps the old copy until it's reloaded. Copies older than 0.7.2 send only 30 frames a second, which can make 50 fps channels look less smooth.
+
+## The Windows start-up box stays ticked
+
+On Windows the "Start Tohyee TV when I sign in to Windows" box un-ticked itself straight after you ticked it, so it looked as if it couldn't be clicked. Windows only reports the start-up entry as on when asked with the same settings it was saved with, and Tohyee TV wasn't asking that way. It does now.
+
+After updating with **Update now**, click **Set up Chrome window**, click the reload arrow on the extension's page (it shows version **0.7.5**), then click **Start channels now**.
 
 ---
 
