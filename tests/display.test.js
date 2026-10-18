@@ -48,7 +48,7 @@ test('The app offers the setting and checks at start-up, on screen changes, afte
   assert.match(main, /if\(!prefs\.fixScreen\|\|process\.platform!=='win32'\)return null;/, 'off unless ticked');
   assert.match(main, /Date\.now\(\)-lastScreenFix<10\*60\*1000/, 'never fights a remote-desktop app');
   assert.match(main, /'display-metrics-changed','display-added','display-removed'/);
-  assert.match(main, /await checkScreen\(\)\.catch\(\(\)=>\{\}\);\n\s*if\(prefs\.autoBroadcast&&runtime\)setTimeout/, 'fixed before Chrome opens');
+  assert.match(main, /await checkScreen\(\)\.catch\(\(\)=>\{\}\);\r?\n\s*if\(prefs\.autoBroadcast&&runtime\)setTimeout/, 'fixed before Chrome opens');
   assert.match(fs.readFileSync(new URL('../desktop/index.html', import.meta.url), 'utf8'), /id="fixScreen"/);
   const args = chromeArgs({profile: 'p', port: 34500});
   assert.ok(args.includes('--kiosk'), 'channels fill the screen');
