@@ -62,7 +62,7 @@ test('Chrome is found in the usual Windows places, and a missing Chrome is repor
 test('The app offers the setting, opens Chrome at start-up, and again after unlocking or waking', () => {
   const main = fs.readFileSync(new URL('../desktop/main.cjs', import.meta.url), 'utf8');
   for (const action of ['autoBroadcast', 'chromeSetup', 'chromeStart']) assert.match(main, new RegExp(`case '${action}'`));
-  assert.match(main, /if\(prefs\.autoBroadcast&&runtime\)setTimeout\(\(\)=>openChromeWindow\(false\),3000\)/);
+  assert.match(main, /if\(prefs\.autoBroadcast&&runtime\)setTimeout\(\(\)=>openChromeWindow\(false\)\.catch\(\(\)=>\{\}\),3000\)/);
   assert.match(main, /\['unlock-screen','resume'\]/);
   const html = fs.readFileSync(new URL('../desktop/index.html', import.meta.url), 'utf8');
   assert.match(html, /id="autoBroadcast"/);

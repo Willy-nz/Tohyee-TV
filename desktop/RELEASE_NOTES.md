@@ -1,3 +1,21 @@
+Tohyee TV 0.7.4: full 1080p on a computer with no monitor.
+
+## Keep the screen at 1920×1080
+
+Chrome can only draw a tab as big as the screen, and Plex gets what Chrome draws. A computer with no monitor plugged in, used through remote desktop, often drops to 1280×720, so Plex got a 720p picture stretched to fill the TV. Tick **Settings → Screen size → Keep this computer's screen at 1920×1080**. Tohyee TV sets the screen to 1920×1080 when it starts, after unlocking or waking, and whenever the screen size changes. It never lowers a bigger screen. If your remote-desktop app has a "resize to fit" option, turn it off.
+
+## The Tohyee TV Chrome window fills the screen
+
+When it starts your channels, Tohyee TV's own Chrome window now opens in kiosk mode: just the page, no tab strip or address bar. So each channel is exactly the screen's size, full 1080p on a 1920×1080 screen. (Plain full screen still left Chrome's bar showing and cut each tab to 1920×975.) Press Alt+F4 in it to close it. **Set up Chrome window** still opens a normal window.
+
+## The size warning tells the truth
+
+Chrome pads a small tab with black borders to make a 1920×1080 picture, so the extension used to think a small tab was full size. It now goes by the tab's real size, and tells you when Plex is getting less than full 1080p.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.7.4**).
+
+---
+
 Tohyee TV 0.7.3: channel logos in Plex.
 
 Channels with a Sky programme guide match now show their logo in Plex. The logos come from the NZXMLTV Sky guide, which has one for every Sky channel. All 61 channels from **Add Sky Go channels** have a guide match.

@@ -434,12 +434,19 @@ test('Capture matches Sky: 50 frames a second by default, 25 when chosen', async
   }
 });
 
-test('A small or wide tab is pointed out, because Plex gets a smaller picture', async () => {
-  for (const [w, h0, word] of [[1280, 600, 'small'], [1920, 937, 'not TV-shaped']]) {
+test('A small or wide tab is pointed out, judged by the tab itself (Chrome pads the capture to 1920×1080)', async () => {
+  for (const [w, h0, word, expect] of [[945, 955, 'small', '945×955'], [1920, 937, 'not TV-shaped', '1920×937'], [2560, 1249, 'not TV-shaped', '1920×937']]) {
     const tracks = [new EventTarget(), new EventTarget()];
-    for (const t of tracks) { t.readyState = 'live'; t.stop = () => {}; t.getSettings = () => ({width: w, height: h0}); }
+    for (const t of tracks) { t.readyState = 'live'; t.stop = () => {}; t.getSettings = () => ({width: 1920, height: 1080}); }
     const h = harness({getUserMedia: async () => ({getTracks: () => tracks, getAudioTracks: () => [tracks[1]], getVideoTracks: () => [tracks[0]]})});
-    await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500});
-    assert.match((await h.send('status')).sizeNote, new RegExp(`${w}×${h0} picture because this tab is ${word}`));
+    await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, tabWidth: w, tabHeight: h0});
+    const status = await h.send('status');
+    assert.equal(status.captureSize, expect);
+    assert.match(status.sizeNote, new RegExp(`${expect} picture because this tab is ${word}`));
   }
+  const tracks = [new EventTarget(), new EventTarget()];
+  for (const t of tracks) { t.readyState = 'live'; t.stop = () => {}; t.getSettings = () => ({width: 1920, height: 1080}); }
+  const h = harness({getUserMedia: async () => ({getTracks: () => tracks, getAudioTracks: () => [tracks[1]], getVideoTracks: () => [tracks[0]]})});
+  await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, tabWidth: 1920, tabHeight: 1080});
+  assert.equal((await h.send('status')).sizeNote, '', 'a full 1920×1080 tab: no warning');
 });

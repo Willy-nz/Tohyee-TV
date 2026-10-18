@@ -102,7 +102,7 @@ async function broadcast(channelNumber) {
   const {port, reloadOnWatch, idleAction, standbySeconds, frameRate} = await settings();
   await ensureOffscreen();
   const streamId = await chrome.tabCapture.getMediaStreamId({targetTabId: tab.id});
-  return toOffscreen({type: 'arm', channelNumber, streamId, tabId: tab.id, tabTitle: tab.title, tabUrl: tab.url, port, reloadOnWatch, idleAction, standbySeconds, frameRate});
+  return toOffscreen({type: 'arm', channelNumber, streamId, tabId: tab.id, tabTitle: tab.title, tabUrl: tab.url, port, reloadOnWatch, idleAction, standbySeconds, frameRate, tabWidth: tab.width, tabHeight: tab.height});
 }
 
 // Leaves the video page for the standby page, closing the site's player.
