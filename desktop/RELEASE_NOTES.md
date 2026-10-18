@@ -1,3 +1,11 @@
+Tohyee TV 0.7.3: channel logos in Plex.
+
+Channels with a Sky programme guide match now show their logo in Plex. The logos come from the NZXMLTV Sky guide, which has one for every Sky channel. All 61 channels from **Add Sky Go channels** have a guide match.
+
+To see them: make sure **Use NZXMLTV Sky listings** is ticked under Channels, then in Plex go to **Settings → Live TV & DVR** and refresh the guide. Plex can take a while to show new logos, and some Plex apps cache them.
+
+---
+
 Tohyee TV 0.7.2: smoother picture, matched to Sky, and much less processor use while nothing is being watched.
 
 ## Smoother picture: 50 frames a second
