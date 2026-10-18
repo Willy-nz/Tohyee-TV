@@ -15,7 +15,9 @@ export function parseGuide(bytes){
  const channels=new Map();const clean=xml.replace(/<!--[\s\S]*?-->/g,'');
  for(const m of clean.matchAll(/<channel\b([^>]+)>([\s\S]*?)<\/channel>/g)){
   const id=attr(m[1],'id');const names=[...m[2].matchAll(/<display-name\b[^>]*>([^<]*)<\/display-name>/g)].map(x=>decode(x[1]));
-  if(id&&names.length)channels.set(id,{id,name:names.find(n=>!/^\d+$/.test(n))||names[0],programmes:[]});
+  // The channel's logo, if the guide has one. Plex only shows logos from https addresses.
+  const icon=attr((m[2].match(/<icon\b[^>]*>/)||[''])[0],'src');
+  if(id&&names.length)channels.set(id,{id,name:names.find(n=>!/^\d+$/.test(n))||names[0],icon:/^https:\/\/[^\s"<>]+$/.test(icon)?icon:'',programmes:[]});
  }
  let end='',count=0;
  for(const m of clean.matchAll(/<programme\b([^>]+)>[\s\S]*?<\/programme>/g)){
@@ -38,8 +40,9 @@ export class GuideStore {
  render(config){if(!config.guideEnabled||!this.data)return xmltv(config);
   const channelXml=[],programmes=[];
   for(const c of channelConfigs(config)){
-   const id=`tohyee.${c.channelNumber}`;channelXml.push(`<channel id="${escapeXml(id)}"><display-name>${escapeXml(c.channelName)}</display-name><display-name>${escapeXml(c.channelNumber)}</display-name></channel>`);
-   const match=this.data.channels.get(c.guideId);
+   const id=`tohyee.${c.channelNumber}`;const match=this.data.channels.get(c.guideId);
+   const icon=match?.icon?`<icon src="${escapeXml(match.icon)}"/>`:'';
+   channelXml.push(`<channel id="${escapeXml(id)}"><display-name>${escapeXml(c.channelName)}</display-name><display-name>${escapeXml(c.channelNumber)}</display-name>${icon}</channel>`);
    if(match)for(const p of match.programmes)programmes.push(p.replace(/^(<programme\b[^>]*\bchannel\s*=)(["']).*?\2/,`$1"${escapeXml(id)}"`));
    else {const fallback=xmltv({...c,channels:undefined});programmes.push(...(fallback.match(/<programme\b[\s\S]*?<\/programme>/g)||[]));}
   }
