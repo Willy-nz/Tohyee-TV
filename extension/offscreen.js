@@ -95,23 +95,28 @@ async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch,
     // start the channel ("Could not tune channel"). A tab that's silent or
     // muted (Sky Go can start muted) sends none, so the sound sent to Plex
     // is the tab's sound mixed with silence, which never stops.
-    s.audioOut = new AudioContext({sampleRate: 48000});
-    const toPlex = s.audioOut.createMediaStreamDestination();
-    if (media.getAudioTracks().length) {
-      const tab = s.audioOut.createMediaStreamSource(media);
-      tab.connect(s.audioOut.destination);
-      tab.connect(toPlex);
+    s.recordStream = media;
+    try {
+      const audioOut = s.audioOut = new AudioContext({sampleRate: 48000});
+      const toPlex = audioOut.createMediaStreamDestination();
+      if (media.getAudioTracks().length) {
+        const tab = audioOut.createMediaStreamSource(media);
+        tab.connect(audioOut.destination);
+        tab.connect(toPlex);
+      }
+      const silence = audioOut.createConstantSource();
+      silence.offset.value = 0;
+      silence.connect(toPlex);
+      silence.start();
+      await audioOut.resume().catch(() => {});
+      if (!s.armed || s.stream !== media) return snapshot(); // stopped while waiting
+      // Chrome didn't allow sound here: send the tab as it is.
+      if (audioOut.state === 'running') s.recordStream = new MediaStream([...media.getVideoTracks(), ...toPlex.stream.getAudioTracks()]);
+    } catch {
+      // No Web Audio: send the tab as it is.
+      if (!s.armed || s.stream !== media) return snapshot();
+      s.recordStream = media;
     }
-    const silence = s.audioOut.createConstantSource();
-    silence.offset.value = 0;
-    silence.connect(toPlex);
-    silence.start();
-    const audioOut = s.audioOut;
-    await audioOut.resume().catch(() => {});
-    if (!s.armed || s.stream !== media) return snapshot(); // stopped while waiting
-    s.recordStream = audioOut.state === 'running'
-      ? new MediaStream([...media.getVideoTracks(), ...toPlex.stream.getAudioTracks()])
-      : media; // Chrome didn't allow sound here: send the tab as it is
     // Chrome shrinks a big tab to fit 1920×1080, but a smaller tab is padded
     // with black borders, not enlarged, and the capture still reports
     // 1920×1080. So judge by the tab's own size (in real pixels), which the
