@@ -1,3 +1,11 @@
+Tohyee TV 0.7.6: channels tune even when the video is muted.
+
+On some computers Plex said **"Could not tune channel"** every time. Plex's own log showed why: the picture was fine (1920×1080 at 50 frames a second), but Chrome sent no sound at all, for example because the video started muted. Plex can't start a channel with an empty sound track. The extension now always sends Plex a proper sound track: the tab's sound mixed with silence, so there's sound from the very first second. If the video is muted you'll get a picture with no sound instead of an error. Click the speaker on the video to hear it.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.7.6**), then arm your tab or click **Start channels now** again.
+
+---
+
 Tohyee TV 0.7.5: the Chrome window gets out of your way.
 
 ## The full-screen Chrome window minimises itself

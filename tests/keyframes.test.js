@@ -40,7 +40,7 @@ const tick = () => new Promise(r => setImmediate(r));
 test('The extension asks Chrome for a keyframe every 2 seconds', () => {
   const src = fs.readFileSync(new URL('../extension/offscreen.js', import.meta.url), 'utf8');
   assert.match(src, /const KEYFRAME_INTERVAL_MS = 2000;/);
-  assert.match(src, /new MediaRecorder\(s\.stream, \{[^}]*videoKeyFrameIntervalDuration: KEYFRAME_INTERVAL_MS/);
+  assert.match(src, /new MediaRecorder\(s\.recordStream \?\? s\.stream, \{[^}]*videoKeyFrameIntervalDuration: KEYFRAME_INTERVAL_MS/);
 });
 
 test('The frame tracker counts pictures since the last keyframe', () => {
@@ -134,4 +134,11 @@ test('Compatibility encoding keeps the frame rate Chrome sends (50 from Sky), an
     assert.equal(args[args.indexOf('-g') + 1], String(Number(expected) * 2), 'a keyframe every 2 seconds');
     enc.kill();
   }
+});
+
+test('Plex always gets real sound data, even from a silent or muted tab', () => {
+  const src = fs.readFileSync(new URL('../extension/offscreen.js', import.meta.url), 'utf8');
+  assert.match(src, /createMediaStreamDestination\(\)/);
+  assert.match(src, /createConstantSource\(\)[\s\S]{0,80}offset\.value = 0[\s\S]{0,60}connect\(toPlex\)[\s\S]{0,30}start\(\)/);
+  assert.match(src, /new MediaStream\(\[\.\.\.media\.getVideoTracks\(\), \.\.\.toPlex\.stream\.getAudioTracks\(\)\]\)/);
 });
