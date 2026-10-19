@@ -38,6 +38,7 @@ const s = {
   inStandby: false,
   standbyTimer: null,
   stream: null,
+  recordStream: null,       // what's sent to Plex: the tab's picture plus a sound track that never goes quiet
   audioOut: null,
   ws: null,
   retry: 0,
@@ -90,11 +91,27 @@ async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch,
     s.stream = media;
     if (!media.getVideoTracks().length) throw new Error('Chrome returned no picture for this tab.');
     // Capturing a tab stops its sound playing on the computer; play it back so you can still hear it.
+    // Plex also needs real sound data from the first second, or it can't
+    // start the channel ("Could not tune channel"). A tab that's silent or
+    // muted (Sky Go can start muted) sends none, so the sound sent to Plex
+    // is the tab's sound mixed with silence, which never stops.
+    s.audioOut = new AudioContext({sampleRate: 48000});
+    const toPlex = s.audioOut.createMediaStreamDestination();
     if (media.getAudioTracks().length) {
-      s.audioOut = new AudioContext();
-      s.audioOut.createMediaStreamSource(media).connect(s.audioOut.destination);
-      s.audioOut.resume().catch(() => {});
+      const tab = s.audioOut.createMediaStreamSource(media);
+      tab.connect(s.audioOut.destination);
+      tab.connect(toPlex);
     }
+    const silence = s.audioOut.createConstantSource();
+    silence.offset.value = 0;
+    silence.connect(toPlex);
+    silence.start();
+    const audioOut = s.audioOut;
+    await audioOut.resume().catch(() => {});
+    if (!s.armed || s.stream !== media) return snapshot(); // stopped while waiting
+    s.recordStream = audioOut.state === 'running'
+      ? new MediaStream([...media.getVideoTracks(), ...toPlex.stream.getAudioTracks()])
+      : media; // Chrome didn't allow sound here: send the tab as it is
     // Chrome shrinks a big tab to fit 1920×1080, but a smaller tab is padded
     // with black borders, not enlarged, and the capture still reports
     // 1920×1080. So judge by the tab's own size (in real pixels), which the
@@ -133,6 +150,8 @@ function disarm(message = 'Not broadcasting.', quiet = false) {
   if (ws) { ws.onclose = null; ws.close(); }
   s.stream?.getTracks().forEach(t => t.stop());
   s.stream = null;
+  s.recordStream?.getAudioTracks().forEach(t => t.stop());
+  s.recordStream = null;
   s.audioOut?.close().catch(() => {});
   s.audioOut = null;
   s.viewers = 0;
@@ -219,7 +238,7 @@ function startRecorder(session) {
   if (!mimeType) { set('error', 'Chrome has no supported video recorder.'); return; }
   let recorder;
   try {
-    recorder = new MediaRecorder(s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000, videoKeyFrameIntervalDuration: KEYFRAME_INTERVAL_MS});
+    recorder = new MediaRecorder(s.recordStream ?? s.stream, {mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000, videoKeyFrameIntervalDuration: KEYFRAME_INTERVAL_MS});
   } catch (error) {
     set('error', `Could not start sending: ${error.message}`);
     return;

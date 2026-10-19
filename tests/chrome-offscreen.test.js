@@ -18,7 +18,8 @@ function harness(getMedia) {
     chrome:{runtime:{id:'test',onMessage:{addListener(fn){listener=fn;}},sendMessage:async()=>{}}},
     navigator:{mediaDevices:{getUserMedia:getMedia ?? (async()=>media)}},
     MediaRecorder:Recorder,
-    AudioContext:class {createMediaStreamSource(){return {connect(){}};}resume(){return Promise.resolve();}close(){return Promise.resolve();}},
+    AudioContext:class { constructor(){this.state='running';} createMediaStreamSource() { return {connect() {}}; } createMediaStreamDestination() { return {stream: {getAudioTracks: () => [{kind: 'audio', stop() {}}]}}; } createConstantSource() { return {offset: {value: 1}, connect() {}, start() {}}; } resume() { return Promise.resolve(); } close() { return Promise.resolve(); } },
+    MediaStream:class {constructor(t){this.tracks=t;}getTracks(){return this.tracks;}getAudioTracks(){return this.tracks.filter(x=>x.kind==='audio');}getVideoTracks(){return this.tracks.filter(x=>x.kind!=='audio');}},
     Blob,URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}}, Date,
     setTimeout(fn,ms){timers.set(++nextTimer,{fn,ms});return nextTimer;},clearTimeout(id){timers.delete(id);}
   };

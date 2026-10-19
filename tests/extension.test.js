@@ -42,7 +42,8 @@ function harness({workerReplies = {}, getUserMedia} = {}) {
     navigator: {mediaDevices: {getUserMedia: getUserMedia ?? (async () => media)}},
     MediaRecorder: FakeRecorder,
     WebSocket: FakeSocket,
-    AudioContext: class { createMediaStreamSource() { return {connect() {}}; } resume() { return Promise.resolve(); } close() { return Promise.resolve(); } },
+    AudioContext: class { constructor(){this.state='running';} createMediaStreamSource() { return {connect() {}}; } createMediaStreamDestination() { return {stream: {getAudioTracks: () => [{kind: 'audio', stop() {}}]}}; } createConstantSource() { return {offset: {value: 1}, connect() {}, start() {}}; } resume() { return Promise.resolve(); } close() { return Promise.resolve(); } },
+    MediaStream: class { constructor(tracks) { this.tracks = tracks; } getTracks() { return this.tracks; } getAudioTracks() { return this.tracks.filter(t => t.kind === 'audio'); } getVideoTracks() { return this.tracks.filter(t => t.kind !== 'audio'); } },
     setTimeout(fn, ms) { timers.set(++nextTimer, {fn, ms}); return nextTimer; },
     clearTimeout(id) { timers.delete(id); },
     JSON, Number, Math, URL, Promise, Error
