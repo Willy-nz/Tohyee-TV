@@ -3,6 +3,11 @@ import {PassThrough} from 'node:stream';
 import {spawn} from 'node:child_process';
 import {chromeInputArgs} from './ffmpeg.js';
 
+// Whether Chrome's recording includes a sound track (a bare "video/webm" usually does).
+export function hasAudio(mime) {
+  return !/codecs\s*=/i.test(mime) || /opus|vorbis|aac|mp4a/i.test(mime);
+}
+
 export function canCopyVideo(mime) {
   return /^video\/(webm|mp4);\s*codecs\s*=\s*"?(h264|avc1(?:\.[a-f0-9]+)?)(?:[,";]|$)/i.test(mime);
 }
@@ -32,7 +37,7 @@ export function sourceEncoder({source, ffmpeg, compatibility = false, tsOffset =
     if (child || ended) return;
     copy = !compatibility && canCopyVideo(mime);
     onMode(copy ? 'Video passthrough · audio conversion' : 'Compatibility encoding');
-    child = spawnProcess(ffmpeg,chromeInputArgs({copyVideo:copy,tsOffset,fps:[25,30,50].includes(Number(getFps()))?Number(getFps()):30}),{stdio:['pipe','pipe','pipe'],windowsHide:true});
+    child = spawnProcess(ffmpeg,chromeInputArgs({copyVideo:copy,tsOffset,chromeAudio:hasAudio(mime),fps:[25,30,50].includes(Number(getFps()))?Number(getFps()):30}),{stdio:['pipe','pipe','pipe'],windowsHide:true});
     input.pipe(child.stdin);
     child.stdin.on('error',()=>{});
     child.stdout.on('data',data=>{lastOutput=Date.now();outputSeen=true;proxy.stdout.write(data);});

@@ -98,7 +98,7 @@ test('Restarting the encoder keeps viewers connected, resyncs at a keyframe and 
 test('FFmpeg gets the timestamp offset in both passthrough and encoding', () => {
   const copy = chromeInputArgs({copyVideo: true, tsOffset: 12.5});
   assert.equal(copy[copy.indexOf('-output_ts_offset') + 1], '12.500');
-  assert.ok(copy.indexOf('-output_ts_offset') < copy.indexOf('-f'));
+  assert.ok(copy.indexOf('-output_ts_offset') < copy.lastIndexOf('-f')); // the output format, after the silent input's '-f lavfi'
   const enc = chromeInputArgs({tsOffset: 3});
   assert.ok(enc.includes('libx264') && enc.includes('3.000'));
   assert.ok(!chromeInputArgs({copyVideo: true}).includes('-output_ts_offset'));
@@ -141,4 +141,16 @@ test('Plex always gets real sound data, even from a silent or muted tab', () => 
   assert.match(src, /createMediaStreamDestination\(\)/);
   assert.match(src, /createConstantSource\(\)[\s\S]{0,80}offset\.value = 0[\s\S]{0,60}connect\(toPlex\)[\s\S]{0,30}start\(\)/);
   assert.match(src, /new MediaStream\(\[\.\.\.media\.getVideoTracks\(\), \.\.\.toPlex\.stream\.getAudioTracks\(\)\]\)/);
+});
+
+test('Every Chrome stream gets a steady silent track mixed in, and stops with the picture', () => {
+  for (const copyVideo of [true, false]) {
+    const args = chromeInputArgs({copyVideo});
+    assert.deepEqual(args.slice(args.indexOf('-re'), args.indexOf('-re') + 5), ['-re', '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo,aformat=sample_fmts=s16']);
+    assert.match(args[args.indexOf('-filter_complex') + 1], /\[0:a:0\]aresample=48000:async=1000:first_pts=0.*\[1:a\]\[tab\]amix=inputs=2:duration=first/);
+    assert.ok(args.includes('-shortest'));
+  }
+  const silentOnly = chromeInputArgs({chromeAudio: false});
+  assert.ok(!silentOnly.includes('-filter_complex'));
+  assert.equal(silentOnly[silentOnly.indexOf('1:a') - 1], '-map');
 });
