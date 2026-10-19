@@ -24,7 +24,7 @@ export PKG_CONFIG_LIBDIR="$PREFIX_DIR/lib/pkgconfig"
  --enable-protocol=file,pipe --enable-demuxer=matroska,mov,mpegts,lavfi \
  --enable-muxer=mpegts,matroska,webm,null --enable-decoder=ffv1,h264,vp8,vp9,opus,aac,pcm_s16le,rawvideo,wrapped_avframe \
  --enable-encoder=ffv1,libx264,aac,pcm_s16le,wrapped_avframe --enable-parser=h264,vp8,vp9,opus,aac \
- --enable-filter=scale,fps,format,aformat,aresample,testsrc,testsrc2,sine,anull,null \
+ --enable-filter=scale,fps,format,aformat,aresample,testsrc,testsrc2,sine,anull,null,anullsrc,amix \
  --enable-indev=lavfi --enable-bsf=h264_mp4toannexb,extract_extradata,aac_adtstoasc --disable-x86asm
 make -j2
 cp ffmpeg.exe ffprobe.exe "$OUT_DIR/"
