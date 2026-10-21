@@ -65,6 +65,12 @@ If a problem remains, copy Help & diagnostics → Recent activity immediately af
 - The tuner defaults to this PC only. Use Private-network firewall permissions when enabling access from your home network; no router port forwarding is needed for local use.
 - Captured media is sent locally to the tuner and your Plex server. Update checks contact GitHub, optional guide downloads contact NZXMLTV, and Chrome connects to your chosen video website.
 
+## Docker server image (experimental)
+
+A Linux amd64 Docker image packages the tuner and FFmpeg for server users. See [Docker setup and Compose instructions](docker/README.md). Settings and guide data persist in a Docker volume.
+
+This is the tuner server only: live video still requires Chrome and the extension in a graphical session on the same Linux host. It does not run Sky Go on a headless NAS or replace the Windows installer’s desktop controls.
+
 ## Development
 
 - `desktop/` — Electron desktop app and Windows installer configuration.

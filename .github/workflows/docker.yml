@@ -1,0 +1,63 @@
+name: Docker image
+on:
+  push:
+    branches: [main]
+    paths: [Dockerfile, .dockerignore, compose.yaml, docker/**, tuner/**, .github/workflows/docker.yml]
+  pull_request:
+    paths: [Dockerfile, .dockerignore, compose.yaml, docker/**, tuner/**, .github/workflows/docker.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Build Linux amd64 image
+        run: docker build -t tohyee-tv:test .
+      - name: Test image and persistent settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'docker logs tohyee-smoke; docker rm -f tohyee-smoke; docker volume rm tohyee-smoke-data' EXIT
+          docker volume create tohyee-smoke-data
+          docker run -d --name tohyee-smoke --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true -v tohyee-smoke-data:/data tohyee-tv:test --test-pattern
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:34500/discover.json > /tmp/discover.json; then break; fi
+            sleep 1
+          done
+          node -e "const d=require('/tmp/discover.json');if(!d.DeviceID)process.exit(1)"
+          docker exec tohyee-smoke node docker/healthcheck.mjs
+          timeout 45 docker exec tohyee-smoke ffprobe -v error -read_intervals '%+3' -show_entries stream=codec_name -of json http://127.0.0.1:34500/stream/1 > /tmp/probe.json
+          node -e "const s=require('/tmp/probe.json').streams; for(const c of ['h264','aac'])if(!s.some(x=>x.codec_name===c))process.exit(1)"
+          docker restart tohyee-smoke
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:34500/discover.json > /tmp/restarted.json; then break; fi
+            sleep 1
+          done
+          node -e "if(require('/tmp/discover.json').DeviceID!==require('/tmp/restarted.json').DeviceID)process.exit(1)"
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag tohyee-tv:test ghcr.io/willy-nz/tohyee-tv:${{ github.sha }}
+          docker tag tohyee-tv:test ghcr.io/willy-nz/tohyee-tv:latest
+          docker push ghcr.io/willy-nz/tohyee-tv:${{ github.sha }}
+          docker push ghcr.io/willy-nz/tohyee-tv:latest

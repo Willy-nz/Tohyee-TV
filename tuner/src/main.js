@@ -12,6 +12,8 @@ import {Broadcaster} from './broadcaster.js';
 import {createTunerServer} from './server.js';
 import {startRuntime} from './runtime.js';
 import {VERSION} from './hdhr.js';
+import {GuideStore} from './epg.js';
+import {join} from 'node:path';
 
 const log = message => console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
 
@@ -49,7 +51,15 @@ async function main() {
   // Default source is the Chrome extension; --test-pattern (or "source": "test"
   // in settings) plays a test picture and tone instead, for checking Plex alone.
   const useTest = process.argv.includes('--test-pattern') || config.source === 'test';
-  const runtime = await startRuntime({config, ffmpeg, log, testPattern:useTest});
+  const guide = new GuideStore({directory: join(dirname(configPath), 'guide'), log});
+  await guide.load();
+  const runtime = await startRuntime({config, ffmpeg, log, testPattern:useTest, guide});
+  let guideTimer;
+  if (config.guideEnabled) {
+    void guide.refresh();
+    guideTimer = setInterval(() => void guide.refresh(), 6 * 60 * 60 * 1000);
+    guideTimer.unref();
+  }
   const {server, broadcaster} = runtime;
   server.on('error', error => {
     console.error(error.code === 'EADDRINUSE'
@@ -77,6 +87,7 @@ Press Ctrl+C to stop.
 
   const shutdown = () => {
     log('Shutting down…');
+    clearInterval(guideTimer);
     runtime.close();
     setTimeout(() => process.exit(0), 500).unref();
   };

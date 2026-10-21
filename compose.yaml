@@ -1,0 +1,20 @@
+services:
+  tohyee-tv:
+    image: ghcr.io/willy-nz/tohyee-tv:latest
+    build: .
+    # Native Linux: Chrome on this host connects over loopback.
+    # Do not replace with port mapping: remote capture is deliberately refused.
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - tuner-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 10s
+volumes:
+  tuner-data:
