@@ -70,7 +70,7 @@ export class SourceHub {
       if (this.accepting) return;
       this.onSession?.(String(message.mimeType ?? ''));
       this.accepting = true;
-      this.log(`Chrome is sending picture and sound (${message.mimeType ?? 'unknown format'}).`);
+      this.log(`Chrome is sending picture and sound (${message.mimeType ?? 'unknown format'})${message.encoder ? `, encoded by ${String(message.encoder).slice(0, 120)}` : ''}.`);
     }
   }
 
