@@ -1,3 +1,17 @@
+Tohyee TV 0.7.8: hardware video encoding, full 50 fps.
+
+Until now Chrome encoded each channel in software. That's heavy on the computer (around 65% CPU on a 4-core i3). It only makes the simple "Constrained Baseline" type of H.264, which Fire TV and some smart-TV Plex apps won't play as it is, so Plex converted it again. And it tops out at 30 frames a second.
+
+The extension now asks Chrome to use the computer's **hardware video encoder** (on Intel computers, Quick Sync, the same thing Plex uses for "Transcode (hw)"). That gives the standard "High" type of H.264 at the full **50 frames a second**, with very little CPU. Plex apps should show **Direct Stream** instead of Transcode.
+
+If Chrome can't use a hardware encoder on your computer, Tohyee TV automatically uses Chrome's own recorder, as before. To see which one is in use, look in **Help & diagnostics**: the line "Chrome is sending picture and sound" ends with "encoded by the computer's hardware video encoder" or "encoded by Chrome's recorder (…reason…)".
+
+Keep **Settings → Video processing** on **Automatic**: the hardware encoder's picture goes straight through to Plex.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.7.8**), then click **Start channels now** (or arm your tabs again).
+
+---
+
 Tohyee TV 0.7.7: channels tune even when Chrome sends no sound.
 
 0.7.6 didn't fix "Could not tune channel" on every computer. Plex's log showed the real cause: the sound track had no sound data at the start, because Chrome sent none (a muted video, or Chrome not letting sound start without a click). Plex can't start a channel without it. Tohyee TV now adds its own steady silent sound track to every channel and mixes Chrome's sound into it, so Plex always gets sound from the first second. Normal sound is unchanged and stays in step with the picture.

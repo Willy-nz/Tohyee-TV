@@ -236,9 +236,34 @@ async function park(){
 }
 
 // ---- Recording while watched ----------------------------------------------
+// Prefer the computer's hardware video encoder (recorder.js): standard "High"
+// H.264 at the full frame rate, with little CPU. If Chrome can't use one, use
+// Chrome's own recorder (software H.264, at most 30 frames a second).
+let recorderToken = 0;
 function startRecorder(session) {
   stopRecorder();
   if (!s.stream || !s.ws || s.ws.readyState !== 1) return;
+  s.encoder = undefined;
+  if (globalThis.TohyeeHardwareRecorder?.available()) { startHardwareRecorder(session); return; }
+  startChromeRecorder(session);
+}
+
+async function startHardwareRecorder(session) {
+  const token = recorderToken;
+  let result;
+  try { result = await TohyeeHardwareRecorder.create(s.recordStream ?? s.stream, {frameRate: s.frameRate, keyframeMs: KEYFRAME_INTERVAL_MS}); }
+  catch (error) { result = {recorder: null, reason: error.message}; }
+  if (token !== recorderToken || !s.stream || !s.ws || s.ws.readyState !== 1) return; // stopped while checking
+  if (!result.recorder) {
+    s.encoder = `Chrome's recorder (${result.reason})`;
+    startChromeRecorder(session);
+    return;
+  }
+  s.encoder = `the computer's ${result.recorder.encoderName} video encoder`;
+  runRecorder(result.recorder, session, result.recorder.mimeType);
+}
+
+function startChromeRecorder(session) {
   const mimeType = MIME_TYPES.find(t => MediaRecorder.isTypeSupported(t));
   if (!mimeType) { set('error', 'Chrome has no supported video recorder.'); return; }
   let recorder;
@@ -248,6 +273,11 @@ function startRecorder(session) {
     set('error', `Could not start sending: ${error.message}`);
     return;
   }
+  s.encoder ??= "Chrome's recorder";
+  runRecorder(recorder, session, mimeType);
+}
+
+function runRecorder(recorder, session, mimeType) {
   s.recorder = recorder;
   s.session = session;
   const ws = s.ws;
@@ -260,7 +290,7 @@ function startRecorder(session) {
     ws.send(event.data);
   };
   recorder.onerror = () => { if (s.recorder === recorder) failStream('Recording failed. Reconnecting to the tuner…'); };
-  ws.send(JSON.stringify({type: 'session', session, mimeType}));
+  ws.send(JSON.stringify({type: 'session', session, mimeType, encoder: s.encoder ?? ''}));
   recorder.start(250);
   set('live', 'LIVE — sending this tab to Plex.');
 }
@@ -272,6 +302,7 @@ function failStream(message) {
 }
 
 function stopRecorder() {
+  recorderToken++;
   const recorder = s.recorder;
   s.recorder = null;
   if (recorder && recorder.state !== 'inactive') {

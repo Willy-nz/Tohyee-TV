@@ -4,11 +4,11 @@
 
 [Website](https://willy-nz.github.io/Tohyee-TV/) · [Download the Windows installer](https://github.com/Willy-nz/Tohyee-TV/releases/latest) · [Release notes](desktop/RELEASE_NOTES.md)
 
-## Current release: 0.7.7
+## Current release: 0.7.8
 
-This release adds a steady silent audio track and mixes Chrome’s audio into it. It addresses the “Could not tune channel” failure caused by an empty audio track at startup. A muted source still sounds silent: unmute the website’s player to hear it.
+The extension now records with the computer’s hardware video encoder (for example Intel Quick Sync) when Chrome can use one. That gives standard H.264 High at the full frame rate (50 fps) with little CPU, so Plex apps such as Fire TV can play it without Plex converting it. Without a hardware encoder it falls back to Chrome’s own recorder, as before. The log shows which encoder was used. Every channel also keeps the steady silent audio track added in 0.7.7.
 
-**After updating the app, reload the extension at `chrome://extensions`, confirm version 0.7.7, then arm the tabs again or click Start channels now.** The app installer does not reload an extension already running in Chrome.
+**After updating the app, reload the extension at `chrome://extensions`, confirm version 0.7.8, then arm the tabs again or click Start channels now.** The app installer does not reload an extension already running in Chrome.
 
 ## What it does
 
@@ -48,7 +48,7 @@ For a PC without a monitor, Settings → Screen size can request 1920×1080 if t
 | Symptom | Check |
 | --- | --- |
 | Still seeing 30 fps | Reload the installed extension, confirm its version, choose 50 fps under Smoothness and re-arm. Extensions older than 0.7.2 cap capture at 30 fps. The built-in test picture is intentionally 30 fps. The selected setting is a limit, not a measured output rate. |
-| Could not tune channel / no audio | Install 0.7.7, reload the extension and start channels again. Unmute the website player if the picture works but sound is silent. |
+| Could not tune channel / no audio | Install 0.7.7 or later, reload the extension and start channels again. Unmute the website player if the picture works but sound is silent. |
 | Playback stops when minimised | Disable automatic minimising and use Show Chrome window, then tune again in Plex. |
 | Another channel will not start | Check that a reusable slot is armed and free, its saved link opens the correct channel, and the website is signed in. |
 | Black picture | Try an unprotected video. Protected content may not be capturable. |

@@ -77,7 +77,7 @@ test('Media is only sent while Plex is watching, starting with the session marke
   assert.equal(rec.state, 'recording');
   assert.equal(rec.slice, 250);
   const session = ws.json().find(m => m.type === 'session');
-  assert.deepEqual(session, {type: 'session', session: 3, mimeType: 'video/webm;codecs=vp8,opus'});
+  assert.deepEqual(session, {type: 'session', session: 3, mimeType: 'video/webm;codecs=vp8,opus', encoder: "Chrome's recorder"});
   rec.chunk(100); rec.chunk(0); rec.chunk(200);
   assert.deepEqual(ws.sent.filter(d => typeof d !== 'string').map(d => d.size), [100, 200]);
   assert.equal((await h.send('status')).state, 'live');
