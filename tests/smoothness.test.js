@@ -35,7 +35,7 @@ test('Chrome capturing well below the channel (the no-monitor case) says so, wit
 
 test('The extension measures and reports what Chrome captures; the tuner keeps it; the app shows it', () => {
   const rec = fs.readFileSync(new URL('../extension/recorder.js', import.meta.url), 'utf8');
-  assert.match(rec, /onFrame\(frame\) \{\n\s+this\.framesIn\+\+;/);
+  assert.match(rec, /onFrame\(frame\) \{\r?\n\s+this\.framesIn\+\+;/);
   const off = fs.readFileSync(new URL('../extension/offscreen.js', import.meta.url), 'utf8');
   assert.match(off, /send\(\{type: 'status', captureFps:/);
   const source = fs.readFileSync(new URL('../tuner/src/source.js', import.meta.url), 'utf8');
