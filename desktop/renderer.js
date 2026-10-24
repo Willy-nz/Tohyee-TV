@@ -30,7 +30,8 @@ $('addChannel').onclick=()=>{const rows=[...$('channelEditor').children];if(rows
 $('saveChannels').onclick=async()=>{const channels=[...$('channelEditor').children].map(row=>{const c=Object.fromEntries([...row.querySelectorAll('[data-key]')].map(i=>[i.dataset.key,i.value.trim()]));return {...c,programmeTitle:c.channelName};});await action('channels',channels);$('channelSaveStatus').textContent=JSON.stringify(state.configuredChannels)===JSON.stringify(channels)?'Saved. Reconnect each Chrome tab and rescan channels in Plex.':'Not saved. Check the error above.';};
 
 function renderUpdates(s){
- $('screenStatus').textContent=[s.screenSize?`Screen now: ${s.screenSize}.`:'',s.screenNote||''].filter(Boolean).join(' ');
+ $('screenStatus').textContent=[s.screenSize?`Screen now: ${s.screenSize}${s.screenHz?` at ${s.screenHz} Hz`:''}.`:'',s.screenNote||''].filter(Boolean).join(' ');
+ const smooth=smoothnessWarning(s);$('smoothBanner').hidden=!smooth;if(smooth)$('smoothText').textContent=smooth;
  $('chromeStatus').textContent=s.chromeFound?'':'Google Chrome wasn’t found on this computer.';
  const u=s.update||{status:'idle'};
  $('updateBanner').hidden=u.status!=='available';
@@ -96,3 +97,15 @@ $('fixScreen').addEventListener('change',()=>action('fixScreen',$('fixScreen').c
 
 // Whether version a (e.g. "0.7.1") is older than b, comparing only the numbers.
 function olderVersion(a,b){const p=v=>(/^(\d+)\.(\d+)\.(\d+)/.exec(String(v||''))||[]).slice(1).map(Number);const x=p(a),y=p(b);if(x.length<3||y.length<3)return false;for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i];return false;}
+
+// Warns when Chrome can't capture the channel's full frame rate: the screen's
+// refresh rate (Hz) doesn't suit it, or Chrome measured well below it.
+// Returns the warning text, or ''.
+function smoothnessWarning(s){
+ const hz=Number(s.screenHz)||0, cap=s.capture, target=cap?.target||50;
+ const suits=hz>0&&hz%target===0;
+ const fix=`Set the screen to ${target} Hz (Settings → System → Display → Advanced display → refresh rate). On a computer with no monitor, plug in an HDMI dummy display plug first, then choose 1920×1080 at ${target} Hz. Then click Start channels now (Settings).`;
+ if(cap&&cap.fps<target*0.85)return `Chrome is capturing only about ${Math.round(cap.fps)} frames a second, but the channel has ${target}, so motion looks less smooth.${hz?` The screen is set to ${hz} Hz.`:''} ${suits?'The screen rate suits the channel, so the computer may be too busy: check Task Manager.':fix}`;
+ if(hz&&!suits)return `The screen is set to ${hz} Hz, which doesn't match the ${target} frames a second your channels have, so motion can look slightly uneven. ${fix}`;
+ return '';
+}

@@ -1,3 +1,17 @@
+Tohyee TV 0.8.0: a warning when the screen holds the picture back.
+
+Tests on a real server found the reason for slightly uneven motion: with **no monitor plugged in**, Windows' stand-in screen only let Chrome draw about **32 frames a second**, while Sky sends 50. With a monitor set to **50 Hz**, the recording was a perfect, evenly spaced **50 frames a second**.
+
+Tohyee TV now tells you when this is happening. A note appears at the top of the app when:
+- the screen's refresh rate doesn't suit your channels (for Sky's 50 frames a second, the screen should be 50 Hz or 100 Hz), or
+- while a channel is being watched, Chrome is capturing well below the channel's frame rate. It says how many frames a second it's really getting.
+
+Click **Open display settings** to change the refresh rate. On a computer with no monitor, plug in an **HDMI dummy display plug** first (a small plug that pretends to be a monitor, about $15–25), then choose **1920×1080 at 50 Hz**. The screen's current size and refresh rate also show under **Settings → Screen size**.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.8.0**), then click **Start channels now**.
+
+---
+
 Tohyee TV 0.7.9: smoother picture, and the sound says English.
 
 ## Evenly spaced frames

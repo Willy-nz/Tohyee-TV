@@ -4,13 +4,15 @@
 
 [Website](https://willy-nz.github.io/Tohyee-TV/) · [Download the Windows installer](https://github.com/Willy-nz/Tohyee-TV/releases/latest) · [Release notes](desktop/RELEASE_NOTES.md)
 
-## Current release: 0.7.9
+## Current release: 0.8.0
 
-Smoother picture: Chrome now captures every screen redraw instead of every other one, so frames are evenly spaced (about 32 uneven frames a second before, on a 60 Hz screen). For an exact 50 fps match with Sky, give the computer a 50 Hz screen (a dummy display plug works on a computer with no monitor). The sound is now labelled English in Plex.
+The app now warns when the screen's refresh rate doesn't suit your channels, or when Chrome captures well below their frame rate, and says how to fix it. Testing showed a computer with no monitor captured only about 32 frames a second; a screen at 50 Hz (a monitor, or an HDMI dummy display plug) gave Sky's full 50.
+
+From 0.7.9: Smoother picture: Chrome now captures every screen redraw instead of every other one, so frames are evenly spaced (about 32 uneven frames a second before, on a 60 Hz screen). For an exact 50 fps match with Sky, give the computer a 50 Hz screen (a dummy display plug works on a computer with no monitor). The sound is now labelled English in Plex.
 
 From 0.7.8: The extension now records with the computer’s hardware video encoder (for example Intel Quick Sync) when Chrome can use one. That gives standard H.264 High at the full frame rate (50 fps) with little CPU, so Plex apps such as Fire TV can play it without Plex converting it. Without a hardware encoder it falls back to Chrome’s own recorder, as before. The log shows which encoder was used. Every channel also keeps the steady silent audio track added in 0.7.7.
 
-**After updating the app, reload the extension at `chrome://extensions`, confirm version 0.7.9, then arm the tabs again or click Start channels now.** The app installer does not reload an extension already running in Chrome.
+**After updating the app, reload the extension at `chrome://extensions`, confirm version 0.8.0, then arm the tabs again or click Start channels now.** The app installer does not reload an extension already running in Chrome.
 
 ## What it does
 
