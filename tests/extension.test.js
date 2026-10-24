@@ -419,15 +419,15 @@ test('The standby page is completely still, so idle captured tabs cost almost no
 });
 
 
-test('Capture matches Sky: 50 frames a second by default, 25 when chosen', async () => {
-  for (const [chosen, expected] of [[undefined, 50], [25, 25], [30, 50]]) {
+test('Capture takes every screen redraw (Smoothness 50, the default) or every second one (25)', async () => {
+  for (const [chosen, expected, limit] of [[undefined, 50, 70], [25, 25, 30], [30, 50, 70]]) {
     let constraints;
     const tracks = [new EventTarget(), new EventTarget()];
     for (const t of tracks) { t.readyState = 'live'; t.stop = () => {}; t.getSettings = () => ({width: 1920, height: 1080}); }
     const media = {getTracks: () => tracks, getAudioTracks: () => [tracks[1]], getVideoTracks: () => [tracks[0]]};
     const h = harness({getUserMedia: async c => { constraints = c; return media; }});
     await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, ...(chosen ? {frameRate: chosen} : {})});
-    assert.equal(constraints.video.mandatory.maxFrameRate, expected, `chosen ${chosen}`);
+    assert.equal(constraints.video.mandatory.maxFrameRate, limit, `chosen ${chosen}`);
     h.sockets[0].open();
     const hello = h.sockets[0].json()[0];
     assert.deepEqual([hello.frameRate, hello.captureSize], [expected, '1920×1080']);

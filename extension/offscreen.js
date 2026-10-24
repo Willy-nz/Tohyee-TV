@@ -73,6 +73,18 @@ function send(message) {
 }
 
 // ---- Capture ---------------------------------------------------------------
+// Chrome only captures a tab when it redraws it, and it redraws in step with
+// the screen: 60 times a second on a computer with no monitor (or most
+// monitors). A capture limit of 50 means "at least 20 ms apart", so Chrome
+// skipped every other 16.7 ms redraw and Plex got about 32 unevenly spaced
+// frames a second (seen in a recording from a real server). So the limit is
+// set above the screen's rate: every redraw is captured, evenly spaced. On a
+// 50 Hz screen (e.g. with a dummy display plug) that's exactly Sky's 50.
+// "25" (less CPU) captures every second redraw: an even 30 on a 60 Hz screen.
+function captureFrameRate(frameRate) {
+  return frameRate === 25 ? 30 : 70;
+}
+
 async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch, idleAction = 'standby', standbySeconds = 60, frameRate = 50, tabWidth = 0, tabHeight = 0}) {
   disarm('Switching to a new tab.', true);
   s.armed = true;
@@ -85,7 +97,7 @@ async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch,
   try {
     const media = await navigator.mediaDevices.getUserMedia({
       audio: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId}},
-      video: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId, maxFrameRate: s.frameRate, maxWidth: 1920, maxHeight: 1080}}
+      video: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId, maxFrameRate: captureFrameRate(s.frameRate), maxWidth: 1920, maxHeight: 1080}}
     });
     if (!s.armed || s.tabId !== tabId) { media.getTracks().forEach(t => t.stop()); return snapshot(); }
     s.stream = media;
@@ -251,7 +263,7 @@ function startRecorder(session) {
 async function startHardwareRecorder(session) {
   const token = recorderToken;
   let result;
-  try { result = await TohyeeHardwareRecorder.create(s.recordStream ?? s.stream, {frameRate: s.frameRate, keyframeMs: KEYFRAME_INTERVAL_MS}); }
+  try { result = await TohyeeHardwareRecorder.create(s.recordStream ?? s.stream, {frameRate: Math.min(60, captureFrameRate(s.frameRate)), keyframeMs: KEYFRAME_INTERVAL_MS}); }
   catch (error) { result = {recorder: null, reason: error.message}; }
   if (token !== recorderToken || !s.stream || !s.ws || s.ws.readyState !== 1) return; // stopped while checking
   if (!result.recorder) {

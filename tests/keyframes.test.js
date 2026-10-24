@@ -154,3 +154,10 @@ test('Every Chrome stream gets a steady silent track mixed in, and stops with th
   assert.ok(!silentOnly.includes('-filter_complex'));
   assert.equal(silentOnly[silentOnly.indexOf('1:a') - 1], '-map');
 });
+
+test('The sound is labelled English, so Plex stops showing "Unknown"', () => {
+  for (const copyVideo of [true, false]) {
+    const args = chromeInputArgs({copyVideo});
+    assert.equal(args[args.indexOf('-metadata:s:a:0') + 1], 'language=eng');
+  }
+});

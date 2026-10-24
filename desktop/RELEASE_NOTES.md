@@ -1,3 +1,19 @@
+Tohyee TV 0.7.9: smoother picture, and the sound says English.
+
+## Evenly spaced frames
+
+A recording from a real server showed the picture had only about 32 frames a second, unevenly spaced, even though Sky sends 50. That's the slight judder you could see on sport. Chrome only captures a tab when it redraws it, and it redraws in step with the screen: 60 times a second on a computer with no monitor. Tohyee TV told Chrome "at most 50 a second", so Chrome skipped every other redraw. It now captures every redraw, so the frames are evenly spaced.
+
+On a 60 Hz screen that's 60 frames a second (all of Sky's 50 plus a few repeats). For an exact match with Sky's 50, the computer needs a 50 Hz screen. On a computer with no monitor, a cheap HDMI dummy display plug lets you choose 50 Hz in Windows display settings. **Smoothness 25** now gives an even 30 on a 60 Hz screen.
+
+## English sound
+
+Plex showed the sound's language as "Unknown". It's now labelled English.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.7.9**), then click **Start channels now**.
+
+---
+
 Tohyee TV 0.7.8: hardware video encoding, full 50 fps.
 
 Until now Chrome encoded each channel in software. That's heavy on the computer (around 65% CPU on a 4-core i3). It only makes the simple "Constrained Baseline" type of H.264, which Fire TV and some smart-TV Plex apps won't play as it is, so Plex converted it again. And it tops out at 30 frames a second.
