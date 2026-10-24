@@ -58,6 +58,8 @@ export function chromeInputArgs({fps = 30, maxWidth = 1920, copyVideo = false, t
     '-map', '0:v:0', ...sound,
     // The silent track never ends: stop when Chrome's picture does.
     '-shortest',
+    // Plex shows the sound's language; Chrome's recording doesn't say, so it showed "Unknown".
+    '-metadata:s:a:0', 'language=eng',
     ...(copyVideo ? [] : ['-vf', `fps=${fps},scale='trunc(min(${maxWidth},iw)/2)*2':-2,format=yuv420p`]),
     ...(copyVideo ? ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-ac', '2', ...tsOffsetArgs(tsOffset), '-f', 'mpegts', '-mpegts_flags', '+resend_headers', '-muxdelay', '0', 'pipe:1'] : outputArgs({fps, videoBitrate: '6M', tsOffset}))
   ];

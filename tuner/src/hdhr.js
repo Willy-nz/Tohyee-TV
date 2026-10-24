@@ -6,7 +6,7 @@ import {channelConfigs} from './config.js';
 // `base` is "http://host:port" built from the address Plex used to reach us,
 // so every URL we hand back is one Plex already knows it can reach.
 
-export const VERSION = '0.7.8';
+export const VERSION = '0.7.9';
 
 export function discover(base, config) {
   return {
