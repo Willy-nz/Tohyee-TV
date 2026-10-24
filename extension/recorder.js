@@ -68,6 +68,16 @@
       this.encoderName = video.hardwareAcceleration === 'prefer-hardware' ? 'hardware' : 'software (test)';
       this.ondataavailable = null; this.onerror = null;
       this.clones = [];
+      this.framesIn = 0; this.measuredAt = 0;
+    }
+
+    // Frames a second Chrome has captured since the last call (for the app's
+    // warning when the screen's refresh rate doesn't suit the channel).
+    measure() {
+      const now = performance.now(), frames = this.framesIn;
+      const fps = this.measuredAt ? frames / ((now - this.measuredAt) / 1000) : null;
+      this.framesIn = 0; this.measuredAt = now;
+      return fps;
     }
 
     emit(bytes) {
@@ -130,6 +140,7 @@
     }
 
     onFrame(frame) {
+      this.framesIn++;
       try {
         const width = even(frame.displayWidth), height = even(frame.displayHeight);
         if (!this.size || this.size.width !== width || this.size.height !== height) {

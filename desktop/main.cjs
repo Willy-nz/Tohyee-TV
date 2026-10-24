@@ -26,7 +26,7 @@ const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,hideChrome:prefs.hideChrome!==false,chromeHidden,extensionVersion:extensionVersion(),fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,hideChrome:prefs.hideChrome!==false,chromeHidden,extensionVersion:extensionVersion(),fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),screenHz:screenHz(),capture:captureRate(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
 // Checks GitHub for a newer installer. Automatic checks tell the person once
@@ -73,6 +73,18 @@ function installUpdate(){
 // starts broadcasting each channel by itself (see extension/autostart.js).
 // ---- Screen size: keep a monitor-less computer at 1920×1080 (display.cjs) ----
 let screenNote='',lastScreenFix=0,screenTimer=null;
+// The screen's refresh rate (Hz). Chrome draws, and Tohyee TV can capture, at
+// most one frame per refresh, so a 50 frames-a-second channel needs a 50 Hz
+// (or 100 Hz) screen. A computer with no monitor uses a stand-in screen that
+// gave only about 32 frames a second in testing.
+function screenHz(){try{return Math.round(require('electron').screen.getPrimaryDisplay().displayFrequency)||0;}catch{return 0;}}
+// What Chrome is really capturing, from the channels being watched: {fps, target} or null.
+function captureRate(){
+  const s=runtime?.status();if(!s)return null;
+  const sources=[...(s.slots??[]),...(s.channels??[]).map(c=>c.source??{})].filter(x=>x.connected&&x.sending&&Number(x.captureFps)>0);
+  if(!sources.length)return null;
+  return {fps:Math.min(...sources.map(x=>Number(x.captureFps))),target:Math.max(...sources.map(x=>Number(x.frameRate)||50))};
+}
 function screenSize(){try{const s=display.physicalSize(require('electron').screen.getPrimaryDisplay());return `${s.width}×${s.height}`;}catch{return '';}}
 async function checkScreen(manual=false){
   if(!prefs.fixScreen||process.platform!=='win32')return null;
@@ -214,6 +226,7 @@ ipcMain.handle('action',async(event,name,value)=>{
     case 'hideChromeNow':if(!(await hideChrome()))throw new Error('Couldn’t minimise the Tohyee TV Chrome window. Is it open?');break;
     case 'fixScreen':prefs.fixScreen=!!value;savePrefs();if(prefs.fixScreen)await checkScreen(true);break;
     case 'fixScreenNow':await checkScreen(true);break;
+    case 'displaySettings':await shell.openExternal('ms-settings:display');break;
     case 'chromeSetup':await openChromeWindow(true);break;
     case 'chromeStart':await openChromeWindow(false);break;
     case 'refreshGuide':guide.refresh();break;

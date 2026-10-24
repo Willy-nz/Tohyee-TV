@@ -304,6 +304,16 @@ function runRecorder(recorder, session, mimeType) {
   recorder.onerror = () => { if (s.recorder === recorder) failStream('Recording failed. Reconnecting to the tuner…'); };
   ws.send(JSON.stringify({type: 'session', session, mimeType, encoder: s.encoder ?? ''}));
   recorder.start(250);
+  // Tell the tuner how many frames a second Chrome really captures (the app
+  // warns when it's well below the channel's, e.g. a screen at the wrong rate).
+  if (typeof recorder.measure === 'function') {
+    recorder.measure();
+    const timer = setInterval(() => {
+      if (s.recorder !== recorder) { clearInterval(timer); return; }
+      const fps = recorder.measure();
+      if (fps !== null) send({type: 'status', captureFps: Math.round(fps * 10) / 10});
+    }, 5000);
+  }
   set('live', 'LIVE — sending this tab to Plex.');
 }
 
