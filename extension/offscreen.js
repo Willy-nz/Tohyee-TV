@@ -39,7 +39,8 @@ const s = {
   standbyTimer: null,
   stream: null,
   recordStream: null,       // what's sent to Plex: the tab's picture plus a sound track that never goes quiet
-  audioOut: null,
+  audioOut: null,           // the tab's sound to the speakers (so you can hear it)
+  audioRec: null,           // the sound sent to Plex, on its own clock with no output device
   ws: null,
   retry: 0,
   retryTimer: null,
@@ -81,6 +82,14 @@ function send(message) {
 // set above the screen's rate: every redraw is captured, evenly spaced. On a
 // 50 Hz screen (e.g. with a dummy display plug) that's exactly Sky's 50.
 // "25" (less CPU) captures every second redraw: an even 30 on a 60 Hz screen.
+// A Web Audio context that renders without any output device (Chrome 110+),
+// so its timing comes from the computer's clock, not a sound card. Older
+// Chrome: a normal context (the previous behaviour).
+function recordingContext() {
+  try { return new AudioContext({sampleRate: 48000, sinkId: {type: 'none'}}); }
+  catch { return new AudioContext({sampleRate: 48000}); }
+}
+
 function captureFrameRate(frameRate) {
   return frameRate === 25 ? 30 : 70;
 }
@@ -107,23 +116,34 @@ async function arm({streamId, tabId, tabTitle, tabUrl = '', port, reloadOnWatch,
     // start the channel ("Could not tune channel"). A tab that's silent or
     // muted (Sky Go can start muted) sends none, so the sound sent to Plex
     // is the tab's sound mixed with silence, which never stops.
+    //
+    // Two separate sound paths, so the recording never depends on the
+    // computer's speakers. With no working sound device (a server with no
+    // speakers, or a switched-off HDMI monitor as the output), Windows'
+    // output clock can run late, and sound sent to Plex was about 2 seconds
+    // behind the picture. So:
+    //   - playback (s.audioOut): the tab's sound to the speakers, only so you can hear it;
+    //   - recording (s.audioRec): the tab's sound plus silence, rendered on its
+    //     own clock with no output device at all (sinkId "none").
     s.recordStream = media;
+    const tabSound = media.getAudioTracks().length > 0;
     try {
       const audioOut = s.audioOut = new AudioContext({sampleRate: 48000});
-      const toPlex = audioOut.createMediaStreamDestination();
-      if (media.getAudioTracks().length) {
-        const tab = audioOut.createMediaStreamSource(media);
-        tab.connect(audioOut.destination);
-        tab.connect(toPlex);
-      }
-      const silence = audioOut.createConstantSource();
+      if (tabSound) audioOut.createMediaStreamSource(media).connect(audioOut.destination);
+      audioOut.resume().catch(() => {});
+    } catch { /* no playback: the recording doesn't need it */ }
+    try {
+      const audioRec = s.audioRec = recordingContext();
+      const toPlex = audioRec.createMediaStreamDestination();
+      if (tabSound) audioRec.createMediaStreamSource(media).connect(toPlex);
+      const silence = audioRec.createConstantSource();
       silence.offset.value = 0;
       silence.connect(toPlex);
       silence.start();
-      await audioOut.resume().catch(() => {});
+      await audioRec.resume().catch(() => {});
       if (!s.armed || s.stream !== media) return snapshot(); // stopped while waiting
       // Chrome didn't allow sound here: send the tab as it is.
-      if (audioOut.state === 'running') s.recordStream = new MediaStream([...media.getVideoTracks(), ...toPlex.stream.getAudioTracks()]);
+      if (audioRec.state === 'running') s.recordStream = new MediaStream([...media.getVideoTracks(), ...toPlex.stream.getAudioTracks()]);
     } catch {
       // No Web Audio: send the tab as it is.
       if (!s.armed || s.stream !== media) return snapshot();
@@ -171,6 +191,8 @@ function disarm(message = 'Not broadcasting.', quiet = false) {
   s.recordStream = null;
   s.audioOut?.close().catch(() => {});
   s.audioOut = null;
+  s.audioRec?.close().catch(() => {});
+  s.audioRec = null;
   s.viewers = 0;
   s.wasWatching = false;
   s.tabId = null;

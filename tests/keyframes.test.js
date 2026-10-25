@@ -161,3 +161,11 @@ test('The sound is labelled English, so Plex stops showing "Unknown"', () => {
     assert.equal(args[args.indexOf('-metadata:s:a:0') + 1], 'language=eng');
   }
 });
+
+test('The sound sent to Plex is mixed on its own clock, with no output device', () => {
+  const src = fs.readFileSync(new URL('../extension/offscreen.js', import.meta.url), 'utf8');
+  assert.match(src, /new AudioContext\(\{sampleRate: 48000, sinkId: \{type: 'none'\}\}\)/);
+  assert.match(src, /const audioRec = s\.audioRec = recordingContext\(\);/);
+  assert.match(src, /audioRec\.createMediaStreamSource\(media\)\.connect\(toPlex\)/);
+  assert.doesNotMatch(src, /audioOut\.createMediaStreamDestination/); // the speakers' context never feeds Plex
+});

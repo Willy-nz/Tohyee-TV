@@ -1,3 +1,13 @@
+Tohyee TV 0.8.1: sound in step on a server with no speakers.
+
+On a server, the sound in Plex was about **2 seconds behind** the picture. The likely cause: Tohyee TV's sound passed through the computer's sound output (so you can hear the tab), and on a server with no working speakers, or with a switched-off HDMI monitor as the sound output, that output's timing can run late.
+
+The sound sent to Plex is now mixed on its **own clock, with no sound device involved at all**. The tab's sound still plays on the computer's speakers as before, but only so you can hear it. It no longer affects the recording.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.8.1**), then click **Start channels now**.
+
+---
+
 Tohyee TV 0.8.0: a warning when the screen holds the picture back.
 
 Tests on a real server found the reason for slightly uneven motion: with **no monitor plugged in**, Windows' stand-in screen only let Chrome draw about **32 frames a second**, while Sky sends 50. With a monitor set to **50 Hz**, the recording was a perfect, evenly spaced **50 frames a second**.
