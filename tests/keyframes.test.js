@@ -136,13 +136,6 @@ test('Compatibility encoding keeps the frame rate Chrome sends (50 from Sky), an
   }
 });
 
-test('Plex always gets real sound data, even from a silent or muted tab', () => {
-  const src = fs.readFileSync(new URL('../extension/offscreen.js', import.meta.url), 'utf8');
-  assert.match(src, /createMediaStreamDestination\(\)/);
-  assert.match(src, /createConstantSource\(\)[\s\S]{0,80}offset\.value = 0[\s\S]{0,60}connect\(toPlex\)[\s\S]{0,30}start\(\)/);
-  assert.match(src, /new MediaStream\(\[\.\.\.media\.getVideoTracks\(\), \.\.\.toPlex\.stream\.getAudioTracks\(\)\]\)/);
-});
-
 test('Every Chrome stream gets a steady silent track mixed in, and stops with the picture', () => {
   for (const copyVideo of [true, false]) {
     const args = chromeInputArgs({copyVideo});
@@ -162,10 +155,11 @@ test('The sound is labelled English, so Plex stops showing "Unknown"', () => {
   }
 });
 
-test('The sound sent to Plex is mixed on its own clock, with no output device', () => {
+test('Plex gets the tab\'s own sound, untouched; Web Audio only plays it on the speakers', () => {
   const src = fs.readFileSync(new URL('../extension/offscreen.js', import.meta.url), 'utf8');
-  assert.match(src, /new AudioContext\(\{sampleRate: 48000, sinkId: \{type: 'none'\}\}\)/);
-  assert.match(src, /const audioRec = s\.audioRec = recordingContext\(\);/);
-  assert.match(src, /audioRec\.createMediaStreamSource\(media\)\.connect\(toPlex\)/);
-  assert.doesNotMatch(src, /audioOut\.createMediaStreamDestination/); // the speakers' context never feeds Plex
+  assert.match(src, /s\.recordStream = media;/);
+  assert.doesNotMatch(src, /createMediaStreamDestination|createConstantSource|sinkId/); // no Web Audio mixing for Plex
+  assert.match(src, /s\.audioOut\.createMediaStreamSource\(media\)\.connect\(s\.audioOut\.destination\)/);
+  // Plex still always gets sound data: the tuner mixes in a steady silent track.
+  assert.ok(chromeInputArgs({copyVideo: true}).some(a => String(a).startsWith('anullsrc')));
 });
