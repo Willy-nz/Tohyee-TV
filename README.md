@@ -4,9 +4,9 @@
 
 [Website](https://willy-nz.github.io/Tohyee-TV/) · [Download the Windows installer](https://github.com/Willy-nz/Tohyee-TV/releases/latest) · [Release notes](desktop/RELEASE_NOTES.md)
 
-## Current release: 0.8.1
+## Current release: 0.8.2
 
-The sound sent to Plex is now mixed on its own clock, separate from the computer's speakers, so a server with no working sound device (or a switched-off HDMI monitor as the output) can't delay it. A server showed sound about 2 seconds behind the picture.
+The sound sent to Plex is now the tab's own captured sound, with no mixing in Chrome. Earlier versions mixed it in Chrome's Web Audio, which could drift about 2 seconds late on a speaker-less server (0.8.0) or stutter after running for a day (0.8.1). The tuner still adds a steady silent track so Plex always has sound.
 
 From 0.8.0: The app now warns when the screen's refresh rate doesn't suit your channels, or when Chrome captures well below their frame rate, and says how to fix it. Testing showed a computer with no monitor captured only about 32 frames a second; a screen at 50 Hz (a monitor, or an HDMI dummy display plug) gave Sky's full 50.
 
@@ -14,7 +14,7 @@ From 0.7.9: Smoother picture: Chrome now captures every screen redraw instead of
 
 From 0.7.8: The extension now records with the computer’s hardware video encoder (for example Intel Quick Sync) when Chrome can use one. That gives standard H.264 High at the full frame rate (50 fps) with little CPU, so Plex apps such as Fire TV can play it without Plex converting it. Without a hardware encoder it falls back to Chrome’s own recorder, as before. The log shows which encoder was used. Every channel also keeps the steady silent audio track added in 0.7.7.
 
-**After updating the app, reload the extension at `chrome://extensions`, confirm version 0.8.1, then arm the tabs again or click Start channels now.** The app installer does not reload an extension already running in Chrome.
+**After updating the app, reload the extension at `chrome://extensions`, confirm version 0.8.2, then arm the tabs again or click Start channels now.** The app installer does not reload an extension already running in Chrome.
 
 ## What it does
 

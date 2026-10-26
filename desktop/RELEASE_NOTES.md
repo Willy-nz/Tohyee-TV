@@ -1,3 +1,17 @@
+Tohyee TV 0.8.2: steady, in-step sound, even after days.
+
+After running for about a day, the sound in Plex started stuttering and dropping out, while the sound on the server itself was fine. Restarting the channels fixed it for a while.
+
+The cause was the step that mixed Chrome's sound with silence before sending it to Plex. In 0.8.1 that ran with no speaker attached, and Chrome slowed it down after a long time. Before that, it followed the speakers' timing, which on a server with no speakers could run about 2 seconds late.
+
+That mixing step is now gone. Tohyee TV sends Chrome's own captured tab sound straight to the tuner, and the tuner (since 0.7.7) adds the steady silent track that keeps Plex happy when a channel is quiet. Chrome's Web Audio is now only used to play the sound on the server's speakers, so you can hear it.
+
+In a test with a video that flashes and beeps at the same moment, the sound lands within 0.01 seconds of the picture.
+
+After updating with **Update now**, reload the extension at `chrome://extensions` (it shows version **0.8.2**), then click **Start channels now**.
+
+---
+
 Tohyee TV 0.8.1: sound in step on a server with no speakers.
 
 On a server, the sound in Plex was about **2 seconds behind** the picture. The likely cause: Tohyee TV's sound passed through the computer's sound output (so you can hear the tab), and on a server with no working speakers, or with a switched-off HDMI monitor as the sound output, that output's timing can run late.
