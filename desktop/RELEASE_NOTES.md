@@ -1,3 +1,11 @@
+## 0.8.3 — TVNZ+ and ThreeNow setup
+
+- Add browser channel presets without overwriting existing channels or Plex numbers.
+- Start reusable tabs across configured websites and route each channel only to a tab authorised for its own website.
+- Explain per-website sign-in, capture permission, guide mapping and tab capacity in the app.
+- Reload the extension after updating, then re-arm. Older extensions cannot be assigned reusable channels until reloaded.
+- Experimental: automated routing tests pass, but TVNZ+/ThreeNow picture, sound and long-running playback require local Windows/NZ testing. No DRM bypass or direct-stream extraction.
+
 Tohyee TV 0.8.2: steady, in-step sound, even after days.
 
 After running for about a day, the sound in Plex started stuttering and dropping out, while the sound on the server itself was fine. Restarting the channels fixed it for a while.

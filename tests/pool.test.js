@@ -1,7 +1,27 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {PassThrough} from 'node:stream';
 import {TabPool} from '../tuner/src/pool.js';import {SourceHub} from '../tuner/src/source.js';import {discover} from '../tuner/src/hdhr.js';
-function setup(){const hubs=[];const pool=new TabPool({count:3,makeHub(){const h=new SourceHub();h.sent=[];h.connection={sendJson:m=>h.sent.push(m),close(){}};hubs.push(h);return h;}});const sources=Array.from({length:4},(_,i)=>pool.source({channelNumber:String(i+1),channelName:'Test '+i,url:'https://example.com/'+i}));return {pool,hubs,sources};}
+function setup(){const hubs=[];const pool=new TabPool({count:3,makeHub(){const h=new SourceHub();h.info={captureOrigin:'https://example.com'};h.sent=[];h.connection={sendJson:m=>h.sent.push(m),close(){}};hubs.push(h);return h;}});const sources=Array.from({length:4},(_,i)=>pool.source({channelNumber:String(i+1),channelName:'Test '+i,url:'https://example.com/'+i}));return {pool,hubs,sources};}
 test('Three tabs serve a larger lineup, same-channel viewers reuse a lease, fourth channel is refused',()=>{const {sources,pool}=setup();for(const s of sources.slice(0,3)){assert.ok(s.acquire());s.setViewers(1);}assert.ok(sources[0].acquire());assert.equal(sources[3].acquire(),false);assert.equal(pool.status().filter(s=>s.channelNumber).length,3);assert.equal(discover('http://x',{captureMode:'pool',tabCount:3,channels:Array(98).fill({})}).TunerCount,3);});
 test('Input is gated until matching tune acknowledgement; stale media and acknowledgements are ignored',()=>{const {sources,hubs}=setup();const s=sources[0],h=hubs[0];s.acquire();const token=h.sent.at(-1).token;const sink=new PassThrough();let calls=0;s.attach(sink,()=>calls++);h.onControl({type:'tuned',token:token-1,ok:true});assert.equal(h.sink,null);h.onControl({type:'tuned',token,ok:true});assert.equal(h.sink,sink);h.onText(h.connection,JSON.stringify({type:'session',session:h.session,mimeType:'video/webm;codecs=h264'}));assert.equal(calls,1);s.detach();assert.equal(h.accepting,false);h.onControl({type:'tuned',token,ok:true});assert.equal(h.sink,null);});
 test('An idle tab is reclaimed without stopping other viewers',()=>{const {sources,hubs}=setup();for(const [i,s] of sources.slice(0,3).entries()){s.acquire(()=>s.detach());hubs[i].onControl({type:'tuned',token:hubs[i].sent.find(m=>m.type==='tune').token,ok:true});s.setViewers(i===0?0:1);}assert.ok(sources[3].acquire());assert.equal(sources[1].status().connected,true);assert.equal(sources[2].status().connected,true);assert.equal(sources[3].status().slot,'1');});
 test('Failed navigation releases its lease',()=>{const {sources,hubs,pool}=setup();const s=sources[0];let failed=0;s.acquire(()=>{failed++;s.detach();});hubs[0].onControl({type:'tuned',token:hubs[0].sent.at(-1).token,ok:false,error:'Sign in'});assert.equal(failed,1);assert.equal(pool.status()[0].channelNumber,undefined);});
+
+test('Mixed-provider pool only leases and reclaims tabs authorised for that channel',()=>{
+ const {pool,hubs,sources}=setup();
+ hubs[0].info={captureOrigin:'https://www.skygo.co.nz'};
+ hubs[1].info={captureOrigin:'https://www.tvnz.co.nz'};
+ hubs[2].info={captureOrigin:'https://www.threenow.co.nz'};
+ const tvnz=pool.source({channelNumber:'10',channelName:'One',url:'https://www.tvnz.co.nz/player/channel/tvnz-1'});
+ assert.equal(sources[0].available,false);assert.equal(sources[0].acquire(),false);
+ assert.equal(tvnz.available,true);assert.equal(tvnz.acquire(),true);assert.equal(tvnz.status().slot,'2');
+ tvnz.setViewers(1);
+ const two=pool.source({channelNumber:'11',channelName:'Two',url:'https://www.tvnz.co.nz/player/channel/tvnz-2'});
+ assert.equal(two.acquire(),false); // Sky and ThreeNow slots are free but incompatible.
+ tvnz.detach();assert.equal(two.acquire(),true);assert.equal(two.status().slot,'2');
+});
+test('Old extensions without an authorised origin are not assigned arbitrary channels',()=>{
+ const {hubs,sources}=setup();for(const h of hubs)h.info=null;
+ assert.equal(sources[0].acquire(),false);
+ hubs[1].onText(hubs[1].connection,JSON.stringify({type:'hello',captureOrigin:'https://example.com'}));
+ assert.equal(sources[0].acquire(),true);assert.equal(sources[0].status().slot,'2');
+});

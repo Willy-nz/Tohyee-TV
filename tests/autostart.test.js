@@ -68,3 +68,10 @@ test('The app offers the setting, opens Chrome at start-up, and again after unlo
   assert.match(html, /id="autoBroadcast"/);
   assert.match(fs.readFileSync(new URL('../extension/worker.js', import.meta.url), 'utf8'), /importScripts\('autostart\.js'\)/);
 });
+
+test('Mixed websites each receive a reusable tab; extras cycle through websites', () => {
+ const mixed=[channels[0],{...channels[2],url:'https://www.tvnz.co.nz/player/channel/tvnz-1'},{...channels[2],channelNumber:'4',url:'https://www.threenow.co.nz/live-tv-guide/three'}];
+ assert.deepEqual(autostartPlan({channels:mixed,captureMode:'pool',tabCount:4}).items.map(i=>i.url),['https://www.skygo.co.nz/','https://www.tvnz.co.nz/','https://www.threenow.co.nz/','https://www.skygo.co.nz/']);
+ const short=autostartPlan({channels:mixed,captureMode:'pool',tabCount:2});
+ assert.deepEqual(short.items,[]); assert.match(short.message,/at least 3/);
+});

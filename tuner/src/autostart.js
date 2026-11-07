@@ -11,8 +11,9 @@ export function autostartPlan(config) {
   if ((config.captureMode ?? 'dedicated') === 'pool') {
     // Reusable tabs open on the website's front page (no player, so no stream
     // used). Plex then sends each one to the channel being watched.
-    const home = `${new URL(withUrl[0].url).origin}/`;
-    return {items: Array.from({length: config.tabCount ?? 3}, (_, i) => ({channelNumber: `@${i + 1}`, label: `Reusable tab ${i + 1}`, url: home}))};
+    const homes = [...new Set(withUrl.map(c => `${new URL(c.url).origin}/`))];
+    if (homes.length > (config.tabCount ?? 3)) return {items: [], message: `Your channels use ${homes.length} websites. Choose at least ${homes.length} reusable tabs, or remove channels from websites you do not need.`};
+    return {items: Array.from({length: config.tabCount ?? 3}, (_, i) => ({channelNumber: `@${i + 1}`, label: `Reusable tab ${i + 1}`, url: homes[i % homes.length]}))};
   }
   // One tab per channel only makes sense for a few channels (each open player
   // can use one of the service's streams).
@@ -26,7 +27,7 @@ export function autostartPage(setup = false) {
 <p>This Chrome window belongs to Tohyee TV. It has its own sign-ins, separate from your usual Chrome. Do these once:</p>
 <ol>
 <li>Open <b>chrome://extensions</b> in this window, turn on <b>Developer mode</b>, click <b>Load unpacked</b> and choose the Tohyee TV extension folder (in the app: Connect to Plex → Open extension folder).</li>
-<li>Open your video website in a new tab and sign in.</li>
+<li>Open each video website in a separate tab and sign in. Repeat the permission step below on each website, using a different reusable slot.</li>
 <li>On that tab, click the Tohyee TV icon and choose <b>Arm this tab for Plex</b> once. That lets the extension press Play and Pause on the site. You can stop it again afterwards.</li>
 </ol>
 <p>From then on, when Tohyee TV starts it opens this window and starts your channels by itself.</p>`

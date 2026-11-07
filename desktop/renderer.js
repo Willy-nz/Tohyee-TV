@@ -67,7 +67,7 @@ function renderPool(s){
  if(!busy&&!captureDirty&&document.activeElement!==$('captureMode'))$('captureMode').value=s.captureMode;
  if(!busy&&!captureDirty&&document.activeElement!==$('tabCount'))$('tabCount').value=s.tabCount;
  if(!busy)$('guideEnabled').checked=s.guideEnabled;
- $('poolStatus').textContent=s.slots?.map(x=>`Tab ${x.id}: ${x.connected?(x.channelName||'Available'):'Not armed'}`).join(' · ')||'Dedicated tabs';
+ $('poolStatus').textContent=s.slots?.map(x=>`Tab ${x.id}: ${x.connected?(x.channelName||x.captureOrigin||'Reload extension and re-arm'):'Not armed'}`).join(' · ')||'Dedicated tabs';
  const g=s.guide??{};$('guideStatus').textContent=g.busy?'Downloading guide…':`${g.programmeCount||0} programmes. ${g.updatedAt?'Updated '+new Date(g.updatedAt).toLocaleString()+'. ':''}${g.through?'Listings through '+g.through+'. ':''}${g.error?'Refresh failed: '+g.error+' (cached data retained).':''}`;
  const signature=JSON.stringify(g.channels??[]);if(signature!==guideSignature){guideSignature=signature;for(const select of document.querySelectorAll('#channelEditor select'))fillGuideOptions(select,select.value);}
 }
@@ -94,6 +94,20 @@ $('addSkyChannels').onclick=()=>{
  $('channelSaveStatus').textContent=`Added ${added} Sky Go channel${added===1?'':'s'}${skipped?` (${skipped} already there)`:''}. Click Save channels${captureDirty?', and Apply capture settings to use reusable tabs':''}. Turn on the Sky programme guide for listings.`;
 };
 $('fixScreen').addEventListener('change',()=>action('fixScreen',$('fixScreen').checked));
+
+
+function addBrowserChannels(provider) {
+ const existing=[...$('channelEditor').children].map(row=>Object.fromEntries([...row.querySelectorAll('[data-key]')].map(i=>[i.dataset.key,i.value.trim()])));
+ const result=window.mergeBrowserPresets(existing,window.FREEVIEW_CHANNELS[provider]);
+ editChannels(result.channels);
+ $('captureMode').value='pool';
+ const origins=new Set(result.channels.filter(c=>c.url).map(c=>{try{return new URL(c.url).origin;}catch{return null;}}).filter(Boolean));
+ $('tabCount').value=Math.min(8,Math.max(Number($('tabCount').value)||3,origins.size));
+ captureDirty=true;
+ $('channelSaveStatus').textContent=`Added ${result.added} channels; ${result.skipped} already present; ${result.renumbered} assigned a spare number. Save channels, then Apply capture settings. Sign in and grant Play permission separately on each website. Select programme guide matches below.`;
+}
+$('addTvnzChannels').onclick=()=>addBrowserChannels('tvnz');
+$('addThreenowChannels').onclick=()=>addBrowserChannels('threenow');
 
 // Whether version a (e.g. "0.7.1") is older than b, comparing only the numbers.
 function olderVersion(a,b){const p=v=>(/^(\d+)\.(\d+)\.(\d+)/.exec(String(v||''))||[]).slice(1).map(Number);const x=p(a),y=p(b);if(x.length<3||y.length<3)return false;for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]<y[i];return false;}

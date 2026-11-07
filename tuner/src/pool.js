@@ -17,14 +17,16 @@ export class TabPool {
   }
   source(channel){
     const pool=this;let lease=null;
+    let origin='';try{origin=new URL(channel.url).origin;}catch{}
+    const matches=s=>!!origin && s.hub.info?.captureOrigin===origin;
     return {
-      get available(){return !!lease?.slot.hub.available||pool.slots.some(s=>s.hub.available&&!s.lease);},
+      get available(){return !!lease?.slot.hub.available||pool.slots.some(s=>s.hub.available&&matches(s)&&!s.lease);},
       acquire(fail){
         if(lease)return true;
         if(!channel.url)return false;
-        let slot=pool.slots.find(s=>s.hub.available&&!s.lease);
-        if(!slot){slot=pool.slots.find(s=>s.hub.available&&s.lease?.ready&&s.lease.viewers===0);if(slot){const old=slot.lease;old.fail?.();pool.release(old);}}
-        if(!slot)return false;
+        let slot=pool.slots.find(s=>s.hub.available&&matches(s)&&!s.lease);
+        if(!slot){slot=pool.slots.find(s=>s.hub.available&&matches(s)&&s.lease?.ready&&s.lease.viewers===0);if(slot){const old=slot.lease;old.fail?.();pool.release(old);}}
+        if(!slot){pool.log(`No available tab authorised for ${origin}. Arm a tab on this website; reload the extension if it was updated.`);return false;}
         lease={slot,channel,token:++pool.sequence,ready:false,viewers:0,fail};slot.lease=lease;
         // Discard any input from the previous session before navigating.
         slot.hub.detach();slot.hub.connection.sendJson({type:'tune',token:lease.token,url:channel.url,channelName:channel.channelName});return true;
