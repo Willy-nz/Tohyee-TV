@@ -69,9 +69,29 @@ test('The app offers the setting, opens Chrome at start-up, and again after unlo
   assert.match(fs.readFileSync(new URL('../extension/worker.js', import.meta.url), 'utf8'), /importScripts\('autostart\.js'\)/);
 });
 
-test('Mixed websites each receive a reusable tab; extras cycle through websites', () => {
+test('Mixed websites each receive a reusable tab; extras are shared out in turn, grouped by website', () => {
  const mixed=[channels[0],{...channels[2],url:'https://www.tvnz.co.nz/player/channel/tvnz-1'},{...channels[2],channelNumber:'4',url:'https://www.threenow.co.nz/live-tv-guide/three'}];
- assert.deepEqual(autostartPlan({channels:mixed,captureMode:'pool',tabCount:4}).items.map(i=>i.url),['https://www.skygo.co.nz/','https://www.tvnz.co.nz/','https://www.threenow.co.nz/','https://www.skygo.co.nz/']);
+ assert.deepEqual(autostartPlan({channels:mixed,captureMode:'pool',tabCount:4}).items.map(i=>i.url),['https://www.skygo.co.nz/','https://www.skygo.co.nz/','https://www.tvnz.co.nz/','https://www.threenow.co.nz/']);
  const short=autostartPlan({channels:mixed,captureMode:'pool',tabCount:2});
  assert.deepEqual(short.items,[]); assert.match(short.message,/at least 3/);
+});
+
+test('Tabs per website: 4 for Sky, 2 each for TVNZ+ and ThreeNow', () => {
+ const mixed=[channels[0],{...channels[2],url:'https://www.tvnz.co.nz/player/channel/tvnz-1'},{...channels[2],channelNumber:'4',url:'https://www.threenow.co.nz/live-tv-guide/three'}];
+ const tabsPerSite={'https://www.skygo.co.nz':4,'https://www.tvnz.co.nz':2,'https://www.threenow.co.nz':2};
+ const plan=autostartPlan({channels:mixed,captureMode:'pool',tabCount:8,tabsPerSite});
+ assert.deepEqual(plan.items.map(i=>i.url),[...Array(4).fill('https://www.skygo.co.nz/'),...Array(2).fill('https://www.tvnz.co.nz/'),...Array(2).fill('https://www.threenow.co.nz/')]);
+ assert.deepEqual(plan.items.map(i=>i.channelNumber),['@1','@2','@3','@4','@5','@6','@7','@8']);
+ // A website left out gets a spare tab; one set to 0 gets none, and that's explained.
+ assert.deepEqual(autostartPlan({channels:mixed,captureMode:'pool',tabCount:6,tabsPerSite:{'https://www.skygo.co.nz':4}}).items.map(i=>i.url).slice(4),['https://www.tvnz.co.nz/','https://www.threenow.co.nz/']);
+ assert.match(autostartPlan({channels:mixed,captureMode:'pool',tabCount:8,tabsPerSite:{...tabsPerSite,'https://www.tvnz.co.nz':0}}).message,/www\.tvnz\.co\.nz/);
+});
+
+test('The tabs-per-website setting is checked', async () => {
+ const {validate,DEFAULTS}=await import('../tuner/src/config.js');
+ const base={...DEFAULTS,deviceId:'1234ABCD',captureMode:'pool',tabCount:8};
+ assert.deepEqual(validate({...base,tabsPerSite:{'https://www.skygo.co.nz':4,'https://www.tvnz.co.nz':2,'https://www.threenow.co.nz':2}}),[]);
+ assert.ok(validate({...base,tabsPerSite:{'https://www.skygo.co.nz':9}}).length);
+ assert.ok(validate({...base,tabCount:4,tabsPerSite:{'https://www.skygo.co.nz':4,'https://www.tvnz.co.nz':2}}).some(p=>/add up to 6/.test(p)));
+ assert.ok(validate({...base,tabsPerSite:{'http://www.skygo.co.nz/path':1}}).length);
 });

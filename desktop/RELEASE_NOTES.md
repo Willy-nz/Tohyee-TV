@@ -4,8 +4,9 @@
 - Start reusable tabs across configured websites and route each channel only to a tab authorised for its own website.
 - Combine NZXMLTV Sky, TVNZ+ and ThreeNow guides at the existing `/guide.xml` address, refreshing every six hours with separate persistent caches and per-provider status.
 - Automatically match channel names within the video website’s guide, retaining manual overrides and existing Sky mappings.
+- Choose how many reusable tabs each website gets (for example 4 Sky Go, 2 TVNZ+ and 2 ThreeNow); Chrome opens each website’s tabs together.
 - Explain per-website sign-in, capture permission, guide mapping and tab capacity in the app.
-- Reload the extension after updating, then re-arm. Older extensions cannot be assigned reusable channels until reloaded.
+- Reload the extension after updating, then re-arm. Until then, tabs keep working as before, but only for the website they were armed on.
 - Experimental: automated routing tests pass, but TVNZ+/ThreeNow picture, sound and long-running playback require local Windows/NZ testing. No DRM bypass or direct-stream extraction.
 
 Tohyee TV 0.8.2: steady, in-step sound, even after days.

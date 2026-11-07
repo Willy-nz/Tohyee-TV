@@ -19,9 +19,11 @@ test('Mixed-provider pool only leases and reclaims tabs authorised for that chan
  assert.equal(two.acquire(),false); // Sky and ThreeNow slots are free but incompatible.
  tvnz.detach();assert.equal(two.acquire(),true);assert.equal(two.status().slot,'2');
 });
-test('Old extensions without an authorised origin are not assigned arbitrary channels',()=>{
+test('Tabs from older extensions (no website reported) still play, after tabs that match',()=>{
  const {hubs,sources}=setup();for(const h of hubs)h.info=null;
- assert.equal(sources[0].acquire(),false);
- hubs[1].onText(hubs[1].connection,JSON.stringify({type:'hello',captureOrigin:'https://example.com'}));
- assert.equal(sources[0].acquire(),true);assert.equal(sources[0].status().slot,'2');
+ assert.equal(sources[0].acquire(),true);assert.equal(sources[0].status().slot,'1');
+ hubs[2].onText(hubs[2].connection,JSON.stringify({type:'hello',captureOrigin:'https://example.com'}));
+ assert.equal(sources[1].acquire(),true);assert.equal(sources[1].status().slot,'3');
+ hubs[1].info={captureOrigin:'https://other.example'};
+ assert.equal(sources[2].acquire(),false); // the only free tab is armed on another website
 });

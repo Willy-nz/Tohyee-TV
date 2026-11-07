@@ -5,15 +5,34 @@ import {escapeXml} from './hdhr.js';
 
 export const MAX_DEDICATED_TABS = 8;
 
+// Which website each reusable tab opens on, in tab order. tabsPerSite
+// (e.g. {"https://www.skygo.co.nz": 4}) says how many each website gets;
+// websites it leaves out, and any tabs left over, are shared out in turn.
+export function poolTabs(channels, config) {
+  const count = config.tabCount ?? 3;
+  const sites = [...new Set(channels.map(c => new URL(c.url).origin))];
+  if (sites.length > count) return {message: `Your channels use ${sites.length} websites. Choose at least ${sites.length} reusable tabs, or remove channels from websites you do not need.`};
+  const wanted = config.tabsPerSite ?? {};
+  const counts = new Map(sites.map(site => [site, Number.isInteger(wanted[site]) ? wanted[site] : 0]));
+  const without = sites.filter(site => counts.get(site) === 0 && wanted[site] !== 0);
+  let spare = count - [...counts.values()].reduce((a, b) => a + b, 0);
+  for (const site of without) if (spare > 0) { counts.set(site, 1); spare--; }
+  const none = sites.filter(site => counts.get(site) === 0);
+  if (none.length) return {message: `No reusable tab is left for ${none.map(s => new URL(s).hostname).join(', ')}. Choose more reusable tabs, give that website a tab, or remove its channels.`};
+  const share = sites.filter(site => !(site in wanted)).length ? sites.filter(site => !(site in wanted)) : sites;
+  for (let i = 0; spare > 0; i++, spare--) counts.set(share[i % share.length], counts.get(share[i % share.length]) + 1);
+  return sites.flatMap(site => Array(counts.get(site)).fill(`${site}/`));
+}
+
 export function autostartPlan(config) {
   const withUrl = channelConfigs(config).filter(c => /^https:\/\//.test(c.url ?? ''));
   if (!withUrl.length) return {items: [], message: 'No channel has a video page address yet. Add one for each channel in the Tohyee TV app (Channels).'};
   if ((config.captureMode ?? 'dedicated') === 'pool') {
     // Reusable tabs open on the website's front page (no player, so no stream
     // used). Plex then sends each one to the channel being watched.
-    const homes = [...new Set(withUrl.map(c => `${new URL(c.url).origin}/`))];
-    if (homes.length > (config.tabCount ?? 3)) return {items: [], message: `Your channels use ${homes.length} websites. Choose at least ${homes.length} reusable tabs, or remove channels from websites you do not need.`};
-    return {items: Array.from({length: config.tabCount ?? 3}, (_, i) => ({channelNumber: `@${i + 1}`, label: `Reusable tab ${i + 1}`, url: homes[i % homes.length]}))};
+    const urls = poolTabs(withUrl, config);
+    if (urls.message) return {items: [], message: urls.message};
+    return {items: urls.map((url, i) => ({channelNumber: `@${i + 1}`, label: `Reusable tab ${i + 1}`, url}))};
   }
   // One tab per channel only makes sense for a few channels (each open player
   // can use one of the service's streams).

@@ -66,13 +66,27 @@ function fillGuideOptions(select,value){select.replaceChildren(new Option('Autom
 function renderPool(s){
  if(!busy&&!captureDirty&&document.activeElement!==$('captureMode'))$('captureMode').value=s.captureMode;
  if(!busy&&!captureDirty&&document.activeElement!==$('tabCount'))$('tabCount').value=s.tabCount;
+ if(!captureDirty)renderSiteTabs(s.tabsPerSite);
  if(!busy)$('guideEnabled').checked=s.guideEnabled;
  $('poolStatus').textContent=s.slots?.map(x=>`Tab ${x.id}: ${x.connected?(x.channelName||x.captureOrigin||'Reload extension and re-arm'):'Not armed'}`).join(' · ')||'Dedicated tabs';
  const g=s.guide??{};$('guideStatus').textContent=g.busy?'Downloading guide…':`${g.programmeCount||0} programmes. ${g.updatedAt?'Updated '+new Date(g.updatedAt).toLocaleString()+'. ':''}${g.through?'Listings through '+g.through+'. ':''}${g.error?'Refresh failed: '+g.error+' (cached data retained).':''}`;
  if(g.sources?.length)$('guideStatus').textContent+=' '+g.sources.map(x=>`${x.name}: ${x.error?'refresh failed (cached listings retained)':x.updatedAt?'updated '+new Date(x.updatedAt).toLocaleString():'not downloaded'}`).join(' · ');
  const signature=JSON.stringify(g.channels??[]);if(signature!==guideSignature){guideSignature=signature;for(const select of document.querySelectorAll('#channelEditor select'))fillGuideOptions(select,select.value);}
 }
-$('saveCapture').onclick=async()=>{const value={mode:$('captureMode').value,count:Number($('tabCount').value)};await action('captureSettings',value);if(state.captureMode===value.mode&&state.tabCount===value.count)captureDirty=false;};
+// One "tabs" box per website in the channel list, e.g. 4 for Sky Go and 2 each
+// for TVNZ+ and ThreeNow. They add up to the number of reusable tabs.
+function channelSites(){const sites=[];for(const input of document.querySelectorAll('#channelEditor [data-key="url"]')){try{const u=new URL(input.value.trim());if(u.protocol==='https:'&&!sites.includes(u.origin))sites.push(u.origin);}catch{}}return sites;}
+function siteTabValues(){return Object.fromEntries([...document.querySelectorAll('#siteTabs input')].map(i=>[i.dataset.site,Number(i.value)]));}
+function renderSiteTabs(saved){
+ const sites=channelSites(),box=$('siteTabs'),current={...saved,...siteTabValues()};
+ if(sites.length<2){box.replaceChildren();return;}
+ if(box.dataset.sites===sites.join(' '))return;
+ box.dataset.sites=sites.join(' ');
+ const total=Number($('tabCount').value)||3,even=Math.max(1,Math.floor(total/sites.length));
+ box.replaceChildren(...sites.map(site=>{const label=document.createElement('label');const input=document.createElement('input');input.type='number';input.min='0';input.max='8';input.dataset.site=site;input.value=Number.isInteger(current[site])?current[site]:even;input.oninput=()=>{captureDirty=true;$('tabCount').value=Object.values(siteTabValues()).reduce((a,b)=>a+(b||0),0);};label.append(`${new URL(site).hostname.replace(/^www\./,'')} tabs `,input);return label;}));
+}
+for(const type of ['input','click'])$('channelEditor').addEventListener(type,()=>renderSiteTabs(state.tabsPerSite));
+$('saveCapture').onclick=async()=>{const sites=siteTabValues();const value={mode:$('captureMode').value,count:Number($('tabCount').value),...(Object.keys(sites).length?{sites}:{})};await action('captureSettings',value);if(state.captureMode===value.mode&&state.tabCount===value.count)captureDirty=false;};
 $('guideEnabled').onchange=()=>action('guideEnabled',$('guideEnabled').checked);
 $('addGuideChannels').onclick=()=>{const rows=[...$('channelEditor').children],mapped=new Set(rows.map(r=>r.querySelector('select').value)),used=new Set(rows.map(r=>r.querySelector('input').value));let n=1;for(const g of state.guide?.channels??[]){if(mapped.has(g.id)||$('channelEditor').children.length>=200)continue;while(used.has(String(n)))n++;addChannelRow({channelNumber:String(n),channelName:g.name.slice(0,60),url:'',guideId:g.id});used.add(String(n));} $('channelSaveStatus').textContent='Review the channels, add their live-page links, then Save channels.';};
 
@@ -105,6 +119,7 @@ function addBrowserChannels(provider) {
  const origins=new Set(result.channels.filter(c=>c.url).map(c=>{try{return new URL(c.url).origin;}catch{return null;}}).filter(Boolean));
  $('tabCount').value=Math.min(8,Math.max(Number($('tabCount').value)||3,origins.size));
  captureDirty=true;
+ renderSiteTabs(state.tabsPerSite);
  $('channelSaveStatus').textContent=`Added ${result.added} channels; ${result.skipped} already present; ${result.renumbered} assigned a spare number. Save channels, then Apply capture settings. Sign in and grant Play permission separately on each website. Enable the programme guide; matches are automatic, with manual overrides below.`;
 }
 $('addTvnzChannels').onclick=()=>addBrowserChannels('tvnz');
