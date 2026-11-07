@@ -62,13 +62,14 @@ function renderUpdates(s){
 let guideSignature='',captureDirty=false;
 $('captureMode').onchange=()=>captureDirty=true;
 $('tabCount').oninput=()=>captureDirty=true;
-function fillGuideOptions(select,value){select.replaceChildren(new Option('No guide match',''),...(state.guide?.channels??[]).map(c=>new Option(c.name,c.id)));if(value&&![...select.options].some(o=>o.value===value))select.add(new Option('Saved mapping: '+value,value));select.value=value;}
+function fillGuideOptions(select,value){select.replaceChildren(new Option('Automatic (channel name and website)',''),...(state.guide?.channels??[]).map(c=>new Option(c.name,c.id)));if(value&&![...select.options].some(o=>o.value===value))select.add(new Option('Saved mapping: '+value,value));select.value=value;}
 function renderPool(s){
  if(!busy&&!captureDirty&&document.activeElement!==$('captureMode'))$('captureMode').value=s.captureMode;
  if(!busy&&!captureDirty&&document.activeElement!==$('tabCount'))$('tabCount').value=s.tabCount;
  if(!busy)$('guideEnabled').checked=s.guideEnabled;
  $('poolStatus').textContent=s.slots?.map(x=>`Tab ${x.id}: ${x.connected?(x.channelName||x.captureOrigin||'Reload extension and re-arm'):'Not armed'}`).join(' · ')||'Dedicated tabs';
  const g=s.guide??{};$('guideStatus').textContent=g.busy?'Downloading guide…':`${g.programmeCount||0} programmes. ${g.updatedAt?'Updated '+new Date(g.updatedAt).toLocaleString()+'. ':''}${g.through?'Listings through '+g.through+'. ':''}${g.error?'Refresh failed: '+g.error+' (cached data retained).':''}`;
+ if(g.sources?.length)$('guideStatus').textContent+=' '+g.sources.map(x=>`${x.name}: ${x.error?'refresh failed (cached listings retained)':x.updatedAt?'updated '+new Date(x.updatedAt).toLocaleString():'not downloaded'}`).join(' · ');
  const signature=JSON.stringify(g.channels??[]);if(signature!==guideSignature){guideSignature=signature;for(const select of document.querySelectorAll('#channelEditor select'))fillGuideOptions(select,select.value);}
 }
 $('saveCapture').onclick=async()=>{const value={mode:$('captureMode').value,count:Number($('tabCount').value)};await action('captureSettings',value);if(state.captureMode===value.mode&&state.tabCount===value.count)captureDirty=false;};
@@ -91,7 +92,7 @@ $('addSkyChannels').onclick=()=>{
   addChannelRow(c);numbers.add(c.channelNumber);added++;
  }
  if(added&&$('captureMode').value!=='pool'){$('captureMode').value='pool';captureDirty=true;}
- $('channelSaveStatus').textContent=`Added ${added} Sky Go channel${added===1?'':'s'}${skipped?` (${skipped} already there)`:''}. Click Save channels${captureDirty?', and Apply capture settings to use reusable tabs':''}. Turn on the Sky programme guide for listings.`;
+ $('channelSaveStatus').textContent=`Added ${added} Sky Go channel${added===1?'':'s'}${skipped?` (${skipped} already there)`:''}. Click Save channels${captureDirty?', and Apply capture settings to use reusable tabs':''}. Turn on the programme guide for listings.`;
 };
 $('fixScreen').addEventListener('change',()=>action('fixScreen',$('fixScreen').checked));
 
@@ -104,7 +105,7 @@ function addBrowserChannels(provider) {
  const origins=new Set(result.channels.filter(c=>c.url).map(c=>{try{return new URL(c.url).origin;}catch{return null;}}).filter(Boolean));
  $('tabCount').value=Math.min(8,Math.max(Number($('tabCount').value)||3,origins.size));
  captureDirty=true;
- $('channelSaveStatus').textContent=`Added ${result.added} channels; ${result.skipped} already present; ${result.renumbered} assigned a spare number. Save channels, then Apply capture settings. Sign in and grant Play permission separately on each website. Select programme guide matches below.`;
+ $('channelSaveStatus').textContent=`Added ${result.added} channels; ${result.skipped} already present; ${result.renumbered} assigned a spare number. Save channels, then Apply capture settings. Sign in and grant Play permission separately on each website. Enable the programme guide; matches are automatic, with manual overrides below.`;
 }
 $('addTvnzChannels').onclick=()=>addBrowserChannels('tvnz');
 $('addThreenowChannels').onclick=()=>addBrowserChannels('threenow');

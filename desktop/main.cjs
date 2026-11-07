@@ -287,7 +287,7 @@ else {
     config.ffmpegPath=encPath;fs.writeFileSync(configPath,JSON.stringify(config,null,2));
     const {GuideStore}=await import(pathToFileURL(path.join(resources,'tuner/src/epg.js')).href);
     guide=new GuideStore({directory:path.join(app.getPath('userData'),'guide'),log});await guide.load();
-    if(config.guideEnabled&&(!guide.updatedAt||Date.now()-Date.parse(guide.updatedAt)>6*60*60*1000))guide.refresh();
+    if(config.guideEnabled&&(!guide.updatedAt||guide.status().sources.some(s=>!s.updatedAt)||Date.now()-Date.parse(guide.updatedAt)>6*60*60*1000))guide.refresh();
     setInterval(()=>{if(config.guideEnabled)guide.refresh();},6*60*60*1000).unref();
     win=new BrowserWindow({width:1040,height:800,minWidth:780,minHeight:600,show:false,backgroundColor:'#17181c',icon,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
     secureWindow(win);await win.loadFile(path.join(__dirname,'index.html'));
