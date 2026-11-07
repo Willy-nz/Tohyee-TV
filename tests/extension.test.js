@@ -451,3 +451,13 @@ test('A small or wide tab is pointed out, judged by the tab itself (Chrome pads 
   await h.send('arm', {streamId: 'sid', tabId: 7, tabTitle: 'Sky Go', port: 34500, tabWidth: 1920, tabHeight: 1080});
   assert.equal((await h.send('status')).sizeNote, '', 'a full 1920×1080 tab: no warning');
 });
+
+test('A video playing in a box on the page is stretched over the whole tab, only in the top frame', () => {
+  const worker = fs.readFileSync(new URL('../extension/worker.js', import.meta.url), 'utf8');
+  const play = worker.slice(worker.indexOf('function playMainVideo()'), worker.indexOf('function pauseMainVideo()'));
+  assert.match(play, /window === window\.top/);
+  assert.match(play, /box\.width < innerWidth \* 0\.9 && box\.height < innerHeight \* 0\.9/);
+  assert.match(play, /position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important/);
+  assert.match(play, /transform:none!important/); // a transformed parent would trap the video in its box
+  assert.match(play, /setInterval\(\(\) => apply\(largest\(\)\), 1000\)/); // stays filled when the page redraws its player
+});

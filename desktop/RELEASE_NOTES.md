@@ -1,3 +1,8 @@
+## 0.8.4 — ThreeNow full screen
+
+- When a website plays its channel in a box beside its TV guide (ThreeNow), the extension stretches the video over the whole tab, so Plex gets just the picture and not the page around it. Videos that already fill the tab (Sky Go, TVNZ+) are left alone.
+- Reload the extension after updating.
+
 ## 0.8.3 — TVNZ+ and ThreeNow setup
 
 - Add browser channel presets without overwriting existing channels or Plex numbers.

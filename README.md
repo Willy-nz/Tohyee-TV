@@ -4,6 +4,10 @@
 
 [Website](https://willy-nz.github.io/Tohyee-TV/) · [Download the Windows installer](https://github.com/Willy-nz/Tohyee-TV/releases/latest) · [Release notes](desktop/RELEASE_NOTES.md)
 
+## Version 0.8.4 — full-tab video on ThreeNow
+
+When a website plays its channel in a box beside its TV guide (ThreeNow), the extension now stretches the video over the whole tab, so Plex gets just the picture. Reload the extension after updating.
+
 ## Version 0.8.3 — browser channel setup
 
 Adds experimental TVNZ+ and ThreeNow presets and reusable tabs that are allocated by website. Existing Sky channels and their numbers are preserved. Reload the Chrome extension at `chrome://extensions` after updating, then re-arm your tabs: older extensions do not report which website they are authorised to capture.

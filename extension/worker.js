@@ -65,6 +65,36 @@ function playMainVideo() {
   if (!playing && main.paused) {
     main.play().catch(() => {});
   }
+  // Some websites (ThreeNow) play the channel in a box beside their TV guide.
+  // Plex gets the whole tab, so stretch the video over the page instead, and
+  // keep it that way (the page may redraw its player). Only the layout
+  // changes; a video that already fills the tab (Sky Go, TVNZ+) is left alone.
+  if (window === window.top) {
+    const box = main.getBoundingClientRect();
+    const boxed = box.width > 0 && box.width < innerWidth * 0.9 && box.height < innerHeight * 0.9;
+    const fill = globalThis.tohyeeFill ??= {video: null, timer: 0};
+    if (boxed || fill.video) {
+      const css = 'video[data-tohyee-fill]{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;margin:0!important;object-fit:contain!important;transform:none!important;z-index:2147483647!important;background:#000!important;visibility:visible!important;opacity:1!important}'
+        + '[data-tohyee-fill-path]{transform:none!important;filter:none!important;perspective:none!important;contain:none!important;will-change:auto!important;backdrop-filter:none!important;clip-path:none!important;mask:none!important;opacity:1!important;visibility:visible!important;z-index:2147483647!important}'
+        + 'html[data-tohyee-fill-path],html[data-tohyee-fill-path]>body{overflow:hidden!important;background:#000!important}';
+      const largest = () => [...document.querySelectorAll('video')].sort((a, b) => (b.clientWidth * b.clientHeight) - (a.clientWidth * a.clientHeight))[0];
+      const apply = video => {
+        if (!document.getElementById('tohyee-fill-style')) {
+          const style = document.createElement('style');
+          style.id = 'tohyee-fill-style';
+          style.textContent = css;
+          (document.head || document.documentElement).append(style);
+        }
+        if (!video || (fill.video === video && video.hasAttribute('data-tohyee-fill'))) return;
+        for (const el of document.querySelectorAll('[data-tohyee-fill],[data-tohyee-fill-path]')) { el.removeAttribute('data-tohyee-fill'); el.removeAttribute('data-tohyee-fill-path'); }
+        video.setAttribute('data-tohyee-fill', '');
+        for (let el = video.parentElement; el; el = el.parentElement) el.setAttribute('data-tohyee-fill-path', '');
+        fill.video = video;
+      };
+      apply(main);
+      if (!fill.timer) fill.timer = setInterval(() => apply(largest()), 1000);
+    }
+  }
   return {found: true, playing, area: main.clientWidth * main.clientHeight};
 }
 
