@@ -4,23 +4,17 @@
 
 [Website](https://willy-nz.github.io/Tohyee-TV/) · [Download the Windows installer](https://github.com/Willy-nz/Tohyee-TV/releases/latest) · [Release notes](desktop/RELEASE_NOTES.md)
 
-## Current release: 0.8.2
+## Version 0.8.3 — browser channel setup
 
-The sound sent to Plex is now the tab's own captured sound, with no mixing in Chrome. Earlier versions mixed it in Chrome's Web Audio, which could drift about 2 seconds late on a speaker-less server (0.8.0) or stutter after running for a day (0.8.1). The tuner still adds a steady silent track so Plex always has sound.
+Adds experimental TVNZ+ and ThreeNow presets and reusable tabs that are allocated by website. Existing Sky channels and their numbers are preserved. Reload the Chrome extension at `chrome://extensions` after updating, then re-arm your tabs: older extensions do not report which website they are authorised to capture.
 
-From 0.8.0: The app now warns when the screen's refresh rate doesn't suit your channels, or when Chrome captures well below their frame rate, and says how to fix it. Testing showed a computer with no monitor captured only about 32 frames a second; a screen at 50 Hz (a monitor, or an HDMI dummy display plug) gave Sky's full 50.
-
-From 0.7.9: Smoother picture: Chrome now captures every screen redraw instead of every other one, so frames are evenly spaced (about 32 uneven frames a second before, on a 60 Hz screen). For an exact 50 fps match with Sky, give the computer a 50 Hz screen (a dummy display plug works on a computer with no monitor). The sound is now labelled English in Plex.
-
-From 0.7.8: The extension now records with the computer’s hardware video encoder (for example Intel Quick Sync) when Chrome can use one. That gives standard H.264 High at the full frame rate (50 fps) with little CPU, so Plex apps such as Fire TV can play it without Plex converting it. Without a hardware encoder it falls back to Chrome’s own recorder, as before. The log shows which encoder was used. Every channel also keeps the steady silent audio track added in 0.7.7.
-
-**After updating the app, reload the extension at `chrome://extensions`, confirm version 0.8.2, then arm the tabs again or click Start channels now.** The app installer does not reload an extension already running in Chrome.
+Browser playback and capture on TVNZ+ and ThreeNow still need testing on a signed-in Windows PC in New Zealand. Presets are browser page links, not a guarantee that protected video can be captured.
 
 ## What it does
 
 - **A large lineup with a few tabs.** Configure up to 200 channels and use 1–8 reusable capture tabs, with three as the default. Three tabs can serve three different channels at once; viewers of the same channel share a tab. A fourth different channel is refused while all three slots are busy; try again after a slot is released. Dedicated-tab mode is also available.
 - **Sky Go channel presets.** Add Sky Go channels fills in 61 channel names, numbers, page links and guide matches from the bundled October 2026 list. Website addresses can change; edit them when needed. Your own subscription and website sign-in are required.
-- **Programme listings and logos.** Optional NZXMLTV Sky listings feed Plex through the app’s XMLTV address. Listings refresh every six hours while enabled, with the last successful download cached. XML and gzip guide imports are supported.
+- **Programme listings and logos.** Optional NZXMLTV Sky, TVNZ+ and ThreeNow listings are combined at the app’s existing XMLTV address. All three refresh every six hours while enabled, with separate last-good caches. Channels match by name and website unless a manual guide match is selected. XML and gzip imports are also supported.
 - **50 or 25 fps capture.** The extension requests up to 50 fps by default; choose 25 fps for less work on the PC. Actual frame rate depends on the source, Chrome and the computer. Full 1080p also needs a sufficiently large tab and screen.
 - **Less encoding when possible.** Compatible H.264 video passes through; audio is converted to AAC. Other formats, or streams needing the compatibility fallback, are encoded again and use more CPU.
 - **Automatic startup.** Optionally start with Windows and open a dedicated Chrome profile to arm your channels. A Spitz tray icon and live indicator show when the app is broadcasting.
@@ -33,11 +27,22 @@ From 0.7.8: The extension now records with the computer’s hardware video encod
 2. **Add the extension.** Open the extension folder from Connect to Plex. In Chrome, open `chrome://extensions`, enable Developer mode, choose Load unpacked and select that folder. Pin the Spitz icon. For automatic startup, use Settings → Set up Chrome window and install the extension in that window’s separate profile.
 3. **Configure channels.** In Channels, choose Add Sky Go channels or enter your own direct HTTPS video-page links. Save channels. For a large lineup, choose Reusable tabs, select a count (start with three), and click Apply capture settings. Existing installations keep their previous capture mode until changed.
 4. **Arm capture.** Open the chosen number of tabs on the same video website and sign in. In each tab’s extension popup, select a different reusable slot and click Arm this tab for Plex. Grant the website permission to press Play and Pause. Keep these tabs reserved for broadcasting. In dedicated mode, select a channel instead of a reusable slot.
-5. **Enable the guide.** In Channels, enable Use NZXMLTV Sky listings, refresh the guide and check each channel’s guide match. Add channels from downloaded guide supplies names and guide matches only; unlike the Sky Go preset, it does not supply video-page links.
+5. **Enable the guide.** In Channels, enable Use NZXMLTV Sky, TVNZ+ and ThreeNow listings, refresh the guide and check each channel’s guide match. Add channels from downloaded guide supplies names and guide matches only; unlike the Sky Go preset, it does not supply video-page links.
 6. **Connect Plex.** Follow Connect to Plex in the app. In your Plex server’s Live TV & DVR settings, add the tuner using the displayed address and supply the displayed XMLTV guide address (`/guide.xml`). Map the channels. If Plex runs on another PC, enable network access and use the Tohyee PC’s LAN address. Rescan channels and refresh Plex’s guide after changing the lineup.
 7. **Watch.** Select a channel in Plex. A reusable tab opens its saved page; switching can take several seconds. Test with the built-in test picture first if you need to check the Plex connection independently of Chrome.
 
 Plex’s setup screens and subscription requirements may vary. Review your existing DVR configuration before changing its guide source.
+
+## Add TVNZ+ and ThreeNow
+
+1. In **Channels**, choose **Add TVNZ+ channels** (TVNZ 1, TVNZ 2, DUKE) and/or **Add ThreeNow channels** (Three, Bravo, eden, Rush, HGTV). Review the editable page links and suggested numbers. Occupied numbers are preserved; new channels use spare numbers from 1000. Existing rows are never removed.
+2. **Save channels**, then **Apply capture settings**. Use at least one reusable tab per website. For Sky + TVNZ+ + ThreeNow, three tabs allow one different channel from each website at once. Extra tabs cycle through websites in the order they first appear in the lineup. For example, six tabs across three websites give each website two slots.
+3. In **Settings → Set up Chrome window**, open each broadcaster’s website in that Chrome window, sign in if asked, accept any necessary prompts and play a live channel. Arm a different reusable slot on each site and grant the extension Play permission. Permissions and sign-ins are separate for each website.
+4. Click **Start channels now**. Tabs now start on each website rather than all starting on Sky. Reload the extension first when upgrading from 0.8.2 or earlier. The status lists each armed tab’s website.
+5. Enable the combined programme guide and refresh it. Matching is automatic by channel name, preferring the guide from the channel’s video website. Select a manual match if necessary; ambiguous or missing matches retain placeholder listings. You can also import XMLTV listings. Rescan the tuner and refresh/map channels in Plex using the existing `/guide.xml` address.
+6. Test picture, sound and switching between two channels on each service. Sign-in pages, adverts, regional restrictions, DRM or player changes can stop capture; no protection bypass is included. If a page has moved, edit its saved address.
+
+Only watched channels are captured. A busy TVNZ tab cannot borrow an idle Sky tab: each stays on its authorised website. To watch another TVNZ channel simultaneously, arm another TVNZ slot (or increase the pool allocation). Dedicated-tab mode remains available for small lineups.
 
 ## Start automatically and run in the background
 
@@ -90,3 +95,15 @@ Run `npm test` with Node 20+. Automated tests do not establish that a particular
 The Windows installer workflow publishes when `desktop/package.json` changes on main. Versions with a suffix are test releases. See [release notes](desktop/RELEASE_NOTES.md) for upgrade details, including reinstalling extensions from before the 0.7.0 extension-ID change.
 
 Tohyee TV is not affiliated with Plex, Google, Sky or NZXMLTV. Trademarks belong to their respective owners.
+
+### Combined programme guide sources
+
+The guide uses NZXMLTV’s fixed-ID feeds:
+
+- Sky: https://nzxmltv.com/sky/guide-static.xml.gz
+- TVNZ+: https://nzxmltv.com/iptv/tvnz-static.xml.gz
+- ThreeNow: https://nzxmltv.com/iptv/threenow-static.xml.gz
+
+Plex still uses `http://YOUR-TOHYEE-PC:34500/guide.xml`; no additional DVR is needed. Only configured channels are exported, with their existing `tohyee.NUMBER` IDs. Streaming-provider IDs are namespaced internally so overlapping IDs cannot mix schedules; existing Sky mappings remain valid. The app reports each provider’s update time and errors separately. A failed or invalid download retains that provider’s cache while the other guides update. Existing `sky.xml` caches still load after upgrade.
+
+An imported XMLTV file is kept separately and supplements the downloaded guides; matching unprefixed IDs in the import override Sky entries. Refreshing online guides does not discard the import. Imported files do not refresh automatically; import a newer file when needed. Schedule coverage depends on NZXMLTV and may differ between providers.

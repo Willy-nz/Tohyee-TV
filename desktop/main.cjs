@@ -26,7 +26,7 @@ const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,hideChrome:prefs.hideChrome!==false,chromeHidden,extensionVersion:extensionVersion(),fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),screenHz:screenHz(),capture:captureRate(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,tabsPerSite:config.tabsPerSite??{},guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,hideChrome:prefs.hideChrome!==false,chromeHidden,extensionVersion:extensionVersion(),fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),screenHz:screenHz(),capture:captureRate(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
 // Checks GitHub for a newer installer. Automatic checks tell the person once
@@ -216,7 +216,7 @@ ipcMain.handle('action',async(event,name,value)=>{
     case 'stopChannel':runtime?.stopBroadcast(String(value));break;
     case 'captureSettings': {
       const {validate}=await import(pathToFileURL(path.join(resources,'tuner/src/config.js')).href);
-      const next={...config,captureMode:value.mode,tabCount:Number(value.count)};const errors=validate(next);if(errors.length)throw Error(errors.join('; '));
+      const next={...config,captureMode:value.mode,tabCount:Number(value.count)};if(value.sites&&typeof value.sites==='object')next.tabsPerSite=Object.fromEntries(Object.entries(value.sites).map(([k,v])=>[String(k),Number(v)]));const errors=validate(next);if(errors.length)throw Error(errors.join('; '));
       fs.writeFileSync(configPath,JSON.stringify(next,null,2));config=next;await restart();break;
     }
     case 'guideEnabled':config.guideEnabled=!!value;fs.writeFileSync(configPath,JSON.stringify(config,null,2));if(value)guide.refresh();break;
@@ -287,7 +287,7 @@ else {
     config.ffmpegPath=encPath;fs.writeFileSync(configPath,JSON.stringify(config,null,2));
     const {GuideStore}=await import(pathToFileURL(path.join(resources,'tuner/src/epg.js')).href);
     guide=new GuideStore({directory:path.join(app.getPath('userData'),'guide'),log});await guide.load();
-    if(config.guideEnabled&&(!guide.updatedAt||Date.now()-Date.parse(guide.updatedAt)>6*60*60*1000))guide.refresh();
+    if(config.guideEnabled&&(!guide.updatedAt||guide.status().sources.some(s=>!s.updatedAt)||Date.now()-Date.parse(guide.updatedAt)>6*60*60*1000))guide.refresh();
     setInterval(()=>{if(config.guideEnabled)guide.refresh();},6*60*60*1000).unref();
     win=new BrowserWindow({width:1040,height:800,minWidth:780,minHeight:600,show:false,backgroundColor:'#17181c',icon,autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
     secureWindow(win);await win.loadFile(path.join(__dirname,'index.html'));

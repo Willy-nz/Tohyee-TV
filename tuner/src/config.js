@@ -45,6 +45,19 @@ export function validate(config) {
   if (!['chrome', 'test'].includes(config.source)) problems.push('source must be "chrome" or "test"');
   if(!['dedicated','pool'].includes(config.captureMode??'dedicated'))problems.push('Invalid capture mode');
   if(!Number.isInteger(config.tabCount??3)||(config.tabCount??3)<1||(config.tabCount??3)>8)problems.push('Choose 1–8 reusable tabs');
+  if(config.tabsPerSite!==undefined){
+    const sites=config.tabsPerSite;
+    if(!sites||typeof sites!=='object'||Array.isArray(sites))problems.push('tabsPerSite must list websites');
+    else{
+      let total=0;
+      for(const [site,n] of Object.entries(sites)){
+        let ok=false;try{const u=new URL(site);ok=u.protocol==='https:'&&u.origin===site;}catch{}
+        if(!ok)problems.push(`tabsPerSite: ${String(site).slice(0,60)} isn’t a website address like https://www.skygo.co.nz`);
+        if(!Number.isInteger(n)||n<0||n>8)problems.push(`Choose 0–8 tabs for ${String(site).slice(0,60)}`);else total+=n;
+      }
+      if(total>(config.tabCount??3))problems.push(`The websites’ tabs add up to ${total}, more than the ${config.tabCount??3} reusable tabs`);
+    }
+  }
   if (config.channels !== undefined) {
     if (!Array.isArray(config.channels) || config.channels.length < 1 || config.channels.length > 200) problems.push('Configure between 1 and 200 channels');
     else {

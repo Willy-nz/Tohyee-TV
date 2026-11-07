@@ -64,7 +64,7 @@ test('Broadcasting connects to the tuner on this computer and says hello', async
   assert.equal(state.state, 'connecting');
   assert.equal(h.sockets[0].url, 'ws://127.0.0.1:34500/source/1');
   h.sockets[0].open();
-  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, idleAction: 'standby', frameRate: 50, captureSize: ''});
+  assert.deepEqual(h.sockets[0].json()[0], {type: 'hello', captureOrigin: '', version: '0.3.0', tabTitle: 'Sky Go', reloadOnWatch: true, idleAction: 'standby', frameRate: 50, captureSize: ''});
   assert.equal((await h.send('status')).state, 'ready');
 });
 

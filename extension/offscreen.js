@@ -185,7 +185,7 @@ function connect() {
   ws.onopen = () => {
     if (s.ws !== ws) return;
     s.retry = 0;
-    ws.send(JSON.stringify({type: 'hello', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction, frameRate: s.frameRate, captureSize: s.captureSize}));
+    ws.send(JSON.stringify({type: 'hello', captureOrigin: s.returnUrl ? new URL(s.returnUrl).origin : '', version: chrome.runtime.getManifest?.().version ?? '', tabTitle: s.tabTitle, reloadOnWatch: s.reloadOnWatch, idleAction: s.idleAction, frameRate: s.frameRate, captureSize: s.captureSize}));
     set('ready', 'Ready. Waiting for someone to watch Tohyee TV in Plex.');
     idleFromStart();
   };
