@@ -1,3 +1,10 @@
+## 0.8.5 — Sign in automatically
+
+- If Sky Go signs the Tohyee TV Chrome window out, a reusable tab signs back in with the email and password saved in Settings → Sign in automatically, then opens the channel.
+- The password is encrypted with Windows’ protection for your Windows account. Only the Tohyee TV extension on this computer can ask the app for it; it’s never shown again in the app.
+- It tries at most once every 10 minutes, so a wrong password can’t lock the account. Phone codes or robot checks stop it; then sign in yourself in the Chrome window.
+- After updating: reload the extension, then in the Tohyee TV Chrome window open Sky Go, click the Tohyee TV icon, choose Arm this tab for Plex and allow login.sky.co.nz.
+
 ## 0.8.4 — ThreeNow full screen
 
 - When a website plays its channel in a box beside its TV guide (ThreeNow), the extension stretches the video over the whole tab, so Plex gets just the picture and not the page around it. Videos that already fill the tab (Sky Go, TVNZ+) are left alone.

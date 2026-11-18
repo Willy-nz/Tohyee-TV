@@ -4,6 +4,10 @@
 
 [Website](https://willy-nz.github.io/Tohyee-TV/) · [Download the Windows installer](https://github.com/Willy-nz/Tohyee-TV/releases/latest) · [Release notes](desktop/RELEASE_NOTES.md)
 
+## Version 0.8.5 — signs back in to Sky Go
+
+If Sky Go signs the Tohyee TV Chrome window out, a reusable tab can now sign back in by itself with a sign-in you save in the app (Settings → Sign in automatically). The password is encrypted with Windows’ protection and only the extension on this computer can ask for it. After updating, reload the extension and arm a Sky Go tab once more to allow login.sky.co.nz.
+
 ## Version 0.8.4 — full-tab video on ThreeNow
 
 When a website plays its channel in a box beside its TV guide (ThreeNow), the extension now stretches the video over the whole tab, so Plex gets just the picture. Reload the extension after updating.

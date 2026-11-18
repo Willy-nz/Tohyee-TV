@@ -66,6 +66,7 @@ function fillGuideOptions(select,value){select.replaceChildren(new Option('Autom
 function renderPool(s){
  if(!busy&&!captureDirty&&document.activeElement!==$('captureMode'))$('captureMode').value=s.captureMode;
  if(!busy&&!captureDirty&&document.activeElement!==$('tabCount'))$('tabCount').value=s.tabCount;
+ renderSignIns(s.signIns);
  if(!captureDirty)renderSiteTabs(s.tabsPerSite);
  if(!busy)$('guideEnabled').checked=s.guideEnabled;
  $('poolStatus').textContent=s.slots?.map(x=>`Tab ${x.id}: ${x.connected?(x.channelName||x.captureOrigin||'Reload extension and re-arm'):'Not armed'}`).join(' · ')||'Dedicated tabs';
@@ -86,6 +87,10 @@ function renderSiteTabs(saved){
  box.replaceChildren(...sites.map(site=>{const label=document.createElement('label');const input=document.createElement('input');input.type='number';input.min='0';input.max='8';input.dataset.site=site;input.value=Number.isInteger(current[site])?current[site]:even;input.oninput=()=>{captureDirty=true;$('tabCount').value=Object.values(siteTabValues()).reduce((a,b)=>a+(b||0),0);};label.append(`${new URL(site).hostname.replace(/^www\./,'')} tabs `,input);return label;}));
 }
 for(const type of ['input','click'])$('channelEditor').addEventListener(type,()=>renderSiteTabs(state.tabsPerSite));
+function renderSignIns(list=[]){
+ $('signInList').replaceChildren(...list.map(s=>{const p=document.createElement('p');p.textContent=s.email?`${s.name}: saved for ${s.email}. `:`${s.name}: no sign-in saved.`;if(s.email){const b=document.createElement('button');b.className='secondary';b.textContent='Remove';b.onclick=()=>action('removeSignIn',s.site);p.append(b);}return p;}));
+}
+$('saveSignIn').onclick=async()=>{const value={site:'https://www.skygo.co.nz',email:$('signInEmail').value.trim(),password:$('signInPassword').value};$('signInPassword').value='';await action('saveSignIn',value);};
 $('saveCapture').onclick=async()=>{const sites=siteTabValues();const value={mode:$('captureMode').value,count:Number($('tabCount').value),...(Object.keys(sites).length?{sites}:{})};await action('captureSettings',value);if(state.captureMode===value.mode&&state.tabCount===value.count)captureDirty=false;};
 $('guideEnabled').onchange=()=>action('guideEnabled',$('guideEnabled').checked);
 $('addGuideChannels').onclick=()=>{const rows=[...$('channelEditor').children],mapped=new Set(rows.map(r=>r.querySelector('select').value)),used=new Set(rows.map(r=>r.querySelector('input').value));let n=1;for(const g of state.guide?.channels??[]){if(mapped.has(g.id)||$('channelEditor').children.length>=200)continue;while(used.has(String(n)))n++;addChannelRow({channelNumber:String(n),channelName:g.name.slice(0,60),url:'',guideId:g.id});used.add(String(n));} $('channelSaveStatus').textContent='Review the channels, add their live-page links, then Save channels.';};
