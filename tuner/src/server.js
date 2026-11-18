@@ -40,7 +40,23 @@ function sourceText(source) {
 }
 
 // `source` is the Chrome SourceHub, or null when playing the test pattern.
-export function createTunerServer({config, broadcaster, source = null, channels, pool, guide, log = () => {}, onAutostartDone = () => {}}) {
+export const EXTENSION_ORIGIN = 'chrome-extension://kffnaonlbpgfpaijambclnleipdgojkl'; // fixed by the key in extension/manifest.json
+const LOOPBACK = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
+
+// Only the Tohyee TV extension on this computer may read a saved sign-in: the
+// request must come from this computer, name 127.0.0.1 or localhost (not a
+// website's own name pointing here), carry a header web pages can't send
+// without asking first (and this server never says yes), and if the browser
+// says who's asking, it must be the extension.
+export function signInRequestAllowed(req, port) {
+  if (!LOOPBACK.includes(req.socket?.remoteAddress)) return false;
+  if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(String(req.headers.host ?? '').toLowerCase())) return false;
+  if (req.headers['x-tohyee-extension'] !== '1') return false;
+  const origin = req.headers.origin;
+  return origin === undefined || origin === EXTENSION_ORIGIN;
+}
+
+export function createTunerServer({config, broadcaster, source = null, channels, pool, guide, log = () => {}, onAutostartDone = () => {}, signIn = () => null}) {
   const fallbackBase = `http://127.0.0.1:${config.port}`;
   channels ??= new Map([[config.channelNumber,{config,broadcaster,source}]]);
   const server = createServer((req, res) => {
@@ -74,6 +90,15 @@ export function createTunerServer({config, broadcaster, source = null, channels,
         const q = new URL(req.url, 'http://x').searchParams, count = v => Math.max(0, Math.min(1000, Math.trunc(Number(v)) || 0));
         onAutostartDone({started: count(q.get('started')), total: count(q.get('total'))});
         return send(res, 204, 'text/plain', '');
+      }
+      case '/signin': {
+        if (!signInRequestAllowed(req, server.address()?.port ?? config.port)) return send(res, 403, 'text/plain', 'Forbidden');
+        const site = new URL(req.url, 'http://x').searchParams.get('site') ?? '';
+        let details = null;
+        try { details = signIn(site); } catch (error) { log(`Couldn’t read the saved sign-in: ${error.message}`); }
+        if (!details) { log(`The extension asked for a saved sign-in for ${site.slice(0, 80)}, but none is saved.`); return send(res, 404, 'text/plain', 'None saved'); }
+        log(`Sent the saved sign-in for ${site} to the extension.`);
+        return send(res, 200, 'application/json', JSON.stringify({email: details.email, password: details.password}));
       }
       case '/autostart.json':
         return send(res,200,'application/json',JSON.stringify(autostartPlan(config)));

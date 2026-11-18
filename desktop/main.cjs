@@ -1,4 +1,6 @@
-const {app,BrowserWindow,Tray,Menu,ipcMain,shell,clipboard,Notification,powerMonitor} = require('electron');
+const {app,BrowserWindow,Tray,Menu,ipcMain,shell,clipboard,Notification,powerMonitor,safeStorage} = require('electron');
+const {SignInStore}=require('./signin.cjs');
+let signIns=null;
 const fs = require('node:fs'); const path = require('node:path'); const {pathToFileURL} = require('node:url');
 const {networkInterfaces} = require('node:os');
 const {spawn} = require('node:child_process');
@@ -26,7 +28,7 @@ const extensionPath = path.join(resources,'extension');
 const encPath = app.isPackaged ? path.join(resources,'ffmpeg','ffmpeg.exe') : (process.env.FFMPEG || 'ffmpeg');
 function log(text){logs.push(`${new Date().toLocaleTimeString()}  ${text}`);if(logs.length>150)logs.shift();}
 function addresses(){return Object.values(networkInterfaces()).flat().filter(a=>a?.family==='IPv4'&&!a.internal).map(a=>a.address);}
-function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,tabsPerSite:config.tabsPerSite??{},guideEnabled:!!config.guideEnabled,autoBroadcast:!!prefs.autoBroadcast,hideChrome:prefs.hideChrome!==false,chromeHidden,extensionVersion:extensionVersion(),fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),screenHz:screenHz(),capture:captureRate(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
+function snapshot(){return {version:app.getVersion(),update,install,canInstall,updateChecks:prefs.updateChecks!==false,testBuilds:testBuilds(),upgradedFrom,...runtime?.status(),captureMode:config.captureMode??'dedicated',tabCount:config.tabCount??3,tabsPerSite:config.tabsPerSite??{},guideEnabled:!!config.guideEnabled,signIns:signIns?.list()??[],autoBroadcast:!!prefs.autoBroadcast,hideChrome:prefs.hideChrome!==false,chromeHidden,extensionVersion:extensionVersion(),fixScreen:!!prefs.fixScreen,screenNote,screenSize:screenSize(),screenHz:screenHz(),capture:captureRate(),chromeFound:!!autostart.findChrome(),guide:guide?.status(),configuredChannels:config.channels??[{channelNumber:config.channelNumber,channelName:config.channelName,programmeTitle:config.programmeTitle}],problem,mode,port:config.port,lan:prefs.lan,startup:app.getLoginItemSettings(LOGIN_ITEM).openAtLogin,videoMode:config.videoMode??'auto',addresses:addresses(),extensionPath,logs:[...logs]};}
 function show(){win.show();win.focus();}
 function savePrefs(){fs.writeFileSync(prefsPath,JSON.stringify(prefs,null,2));}
 // Checks GitHub for a newer installer. Automatic checks tell the person once
@@ -197,7 +199,7 @@ async function start(test=false){
   problem='';mode=test?'test':'chrome';
   try{
     const {startRuntime}=await import(pathToFileURL(path.join(resources,'tuner/src/runtime.js')).href);
-    runtime=await startRuntime({config,ffmpeg:encPath,log,testPattern:test,guide});
+    runtime=await startRuntime({config,ffmpeg:encPath,log,testPattern:test,guide,signIn:site=>signIns?.get(site)??null});
     log(test?'Test picture is ready.':'Tuner is ready. Choose a tab in Chrome to broadcast.');
   }catch(error){problem=error.code==='EADDRINUSE'?'The tuner port is already in use. Close the old tuner and click Restart tuner.':error.message;log(problem);}
 }
@@ -227,6 +229,8 @@ ipcMain.handle('action',async(event,name,value)=>{
     case 'fixScreen':prefs.fixScreen=!!value;savePrefs();if(prefs.fixScreen)await checkScreen(true);break;
     case 'fixScreenNow':await checkScreen(true);break;
     case 'displaySettings':await shell.openExternal('ms-settings:display');break;
+    case 'saveSignIn':signIns.save(value);log(`Saved the sign-in for ${value.site}.`);break;
+    case 'removeSignIn':signIns.remove(String(value));log(`Removed the saved sign-in for ${value}.`);break;
     case 'chromeSetup':await openChromeWindow(true);break;
     case 'chromeStart':await openChromeWindow(false);break;
     case 'refreshGuide':guide.refresh();break;
@@ -286,6 +290,7 @@ else {
     config=loadConfig(configPath);config.listenAddress=prefs.lan?'0.0.0.0':'127.0.0.1';
     config.ffmpegPath=encPath;fs.writeFileSync(configPath,JSON.stringify(config,null,2));
     const {GuideStore}=await import(pathToFileURL(path.join(resources,'tuner/src/epg.js')).href);
+    signIns=new SignInStore({file:path.join(app.getPath('userData'),'signin.json'),safeStorage});
     guide=new GuideStore({directory:path.join(app.getPath('userData'),'guide'),log});await guide.load();
     if(config.guideEnabled&&(!guide.updatedAt||guide.status().sources.some(s=>!s.updatedAt)||Date.now()-Date.parse(guide.updatedAt)>6*60*60*1000))guide.refresh();
     setInterval(()=>{if(config.guideEnabled)guide.refresh();},6*60*60*1000).unref();

@@ -66,7 +66,7 @@ test('The app offers the setting, opens Chrome at start-up, and again after unlo
   assert.match(main, /\['unlock-screen','resume'\]/);
   const html = fs.readFileSync(new URL('../desktop/index.html', import.meta.url), 'utf8');
   assert.match(html, /id="autoBroadcast"/);
-  assert.match(fs.readFileSync(new URL('../extension/worker.js', import.meta.url), 'utf8'), /importScripts\('autostart\.js'\)/);
+  assert.match(fs.readFileSync(new URL('../extension/worker.js', import.meta.url), 'utf8'), /importScripts\('autostart\.js'(, '[a-z]+\.js')*\)/);
 });
 
 test('Mixed websites each receive a reusable tab; extras are shared out in turn, grouped by website', () => {

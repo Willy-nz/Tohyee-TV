@@ -39,7 +39,10 @@ async function askPlayPermission() {
   if (!el('channel').value.startsWith('@') && !el('reload').checked && el('idleAction').value === 'none') return;
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   if (!tab?.url || !/^https?:/.test(tab.url)) return;
-  const origins = [`${new URL(tab.url).origin}/*`];
+  // On a website that signs in on its own page (Sky Go), ask for that page too,
+  // so Tohyee TV can sign back in by itself (signin.js).
+  const signInPage = globalThis.TohyeeSignIn?.forSite(new URL(tab.url).origin)?.page;
+  const origins = [`${new URL(tab.url).origin}/*`, ...(signInPage ? [`${signInPage}/*`] : [])];
   if (await chrome.permissions.contains({origins})) return;
   const granted = await chrome.permissions.request({origins}).catch(() => false);
   if (!granted) el('message').textContent = 'OK — it can still reload the tab, but can’t press Play or Pause for you on this site.';

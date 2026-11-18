@@ -152,6 +152,41 @@ async function returnTab(tabId, url) {
   return {ok: true};
 }
 
+// ---- Signing a tab back in (signin.js) ----
+const SIGN_IN_GAP_MS = 10 * 60 * 1000; // at most one try per website in 10 minutes, so a wrong password can't lock the account
+const signingIn = new Map();
+function signInTab(tabId) {
+  if (!signingIn.has(tabId)) signingIn.set(tabId, signIn(tabId).finally(() => signingIn.delete(tabId)));
+  return signingIn.get(tabId);
+}
+async function signIn(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  const site = TohyeeSignIn.forPage(tab.url);
+  if (!site) throw new Error('This isn’t a sign-in page Tohyee TV knows.');
+  const key = `signInTried:${site.site}`;
+  const {[key]: tried} = await chrome.storage.session.get(key);
+  if (typeof tried === 'number' && Date.now() - tried < SIGN_IN_GAP_MS) throw new Error(`${site.name} has signed out. Tohyee TV tried signing in less than 10 minutes ago, so it’s waiting: sign in in the Tohyee TV Chrome window, or try again later.`);
+  if (!await chrome.permissions.contains({origins: [`${site.page}/*`]})) throw new Error(`${site.name} has signed out. To let Tohyee TV sign back in, open ${site.name} in the Tohyee TV Chrome window, click the Tohyee TV icon, choose Arm this tab for Plex and allow ${new URL(site.page).hostname}. Or sign in yourself.`);
+  const {port} = await settings();
+  let response = null;
+  try { response = await fetch(`http://127.0.0.1:${port}/signin?site=${encodeURIComponent(site.site)}`, {headers: {'X-Tohyee-Extension': '1'}, cache: 'no-store', credentials: 'omit'}); } catch { /* app not running */ }
+  if (!response || response.status === 404) throw new Error(`${site.name} has signed out. Save your ${site.name} sign-in in the Tohyee TV app (Settings → Sign in automatically) so it can sign back in, or sign in yourself in the Tohyee TV Chrome window.`);
+  if (!response.ok) throw new Error(`${site.name} has signed out, and the Tohyee TV app wouldn’t give the saved sign-in (${response.status}).`);
+  const {email, password} = await response.json();
+  await chrome.storage.session.set({[key]: Date.now()});
+  const fields = {email: site.email, password: site.password, submit: site.submit};
+  const [filled] = await chrome.scripting.executeScript({target: {tabId}, func: TohyeeSignIn.fillSignIn, args: [email, password, fields]});
+  if (!filled?.result?.ok) throw new Error(`${site.name} has signed out, and Tohyee TV couldn’t sign back in: ${filled?.result?.error ?? 'the sign-in page didn’t respond'}. Sign in yourself in the Tohyee TV Chrome window.`);
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 750));
+    const now = await chrome.tabs.get(tabId);
+    if (new URL(now.url).origin === site.site && now.status === 'complete') return {ok: true, site: site.site};
+  }
+  let message = '';
+  try { const [shown] = await chrome.scripting.executeScript({target: {tabId}, func: TohyeeSignIn.signInMessage, args: [site.error]}); message = shown?.result ?? ''; } catch { /* the page moved on */ }
+  throw new Error(`${site.name} didn’t accept the saved sign-in${message ? ` (“${message}”)` : ''}. Check it in the Tohyee TV app, or sign in yourself in the Tohyee TV Chrome window.`);
+}
+
 const poolNavigations=new Map();
 async function navigatePool(message){
  const {tabId,navigation}=message;poolNavigations.set(tabId,navigation);
@@ -162,12 +197,20 @@ async function navigatePool(message){
  if(!await chrome.permissions.contains({origins:[url.origin+'/*']}))throw new Error('Give the extension Play permission for this website, then arm the tab again.');
  if(!current())return {ok:false,error:'Switch cancelled'};
  await chrome.tabs.update(tabId,{url:url.href});
- let loadedAt=0;
+ let loadedAt=0,signedIn=false;
  for(let i=0;i<35;i++){
   await new Promise(r=>setTimeout(r,800));if(!current())return {ok:false,error:'Switch cancelled'};
   const tab=await chrome.tabs.get(tabId);
   if(tab.status!=='complete'){loadedAt=0;continue;}
-  if(new URL(tab.url).origin!==url.origin)throw new Error('The channel redirected to another website. Check its link or sign in.');
+  if(new URL(tab.url).origin!==url.origin){
+   // Signed out: the website sent the tab to its sign-in page. Sign in with
+   // the saved details (once), then open the channel again.
+   if(!signedIn&&TohyeeSignIn.forPage(tab.url)?.site===url.origin){
+    signedIn=true;await signInTab(tabId);if(!current())return {ok:false,error:'Switch cancelled'};
+    await chrome.tabs.update(tabId,{url:url.href});loadedAt=0;i=0;continue;
+   }
+   throw new Error('The channel redirected to another website. Check its link or sign in.');
+  }
   if(!loadedAt){loadedAt=Date.now();continue;}
   if(Date.now()-loadedAt<1600)continue;
   const result=await ensurePlaying(tabId);if(result.playing)return {ok:true};
@@ -252,7 +295,7 @@ async function command(message) {
   }
 }
 
-importScripts('autostart.js');
+importScripts('autostart.js', 'signin.js');
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message.target !== 'worker' || sender.id !== chrome.runtime.id) return;

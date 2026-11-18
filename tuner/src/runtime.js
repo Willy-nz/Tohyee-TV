@@ -7,7 +7,7 @@ import {createTunerServer} from './server.js';
 import {testPatternArgs} from './ffmpeg.js';
 import {sourceEncoder} from './media.js';
 
-export async function startRuntime({config, ffmpeg, log = () => {}, testPattern = false, guide}) {
+export async function startRuntime({config, ffmpeg, log = () => {}, testPattern = false, guide, signIn}) {
   const channels = new Map();
   const pool=config.captureMode==='pool'&&!testPattern?new TabPool({count:config.tabCount??3,log}):null;
   for (const channel of channelConfigs(config)) {
@@ -36,7 +36,7 @@ export async function startRuntime({config, ffmpeg, log = () => {}, testPattern 
   }
   const first = channels.values().next().value;
   let autostartDone = null;
-  const server = createTunerServer({config,channels,log,pool,guide,onAutostartDone:result=>{autostartDone={...result,at:Date.now()};log(`Chrome started ${result.started} of ${result.total} channel tab(s).`);}});
+  const server = createTunerServer({config,channels,log,pool,guide,signIn,onAutostartDone:result=>{autostartDone={...result,at:Date.now()};log(`Chrome started ${result.started} of ${result.total} channel tab(s).`);}});
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(config.port,config.listenAddress,resolve);});
   server.on('error',error=>log(`Tuner error: ${error.message}`));
   const stop = number => {
