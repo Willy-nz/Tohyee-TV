@@ -197,7 +197,8 @@ async function navigatePool(message){
  if(!await chrome.permissions.contains({origins:[url.origin+'/*']}))throw new Error('Give the extension Play permission for this website, then arm the tab again.');
  if(!current())return {ok:false,error:'Switch cancelled'};
  await chrome.tabs.update(tabId,{url:url.href});
- let loadedAt=0,signedIn=false;
+ let loadedAt=0,signedIn=false,picked=0;
+ const profile=globalThis.TohyeeSignIn?.forSite(url.origin)?.profile;
  for(let i=0;i<35;i++){
   await new Promise(r=>setTimeout(r,800));if(!current())return {ok:false,error:'Switch cancelled'};
   const tab=await chrome.tabs.get(tabId);
@@ -213,6 +214,11 @@ async function navigatePool(message){
   }
   if(!loadedAt){loadedAt=Date.now();continue;}
   if(Date.now()-loadedAt<1600)continue;
+  // "Who's watching?" (after signing in): pick the first profile, then open the channel again.
+  if(profile&&picked<2){
+   const [shown]=await chrome.scripting.executeScript({target:{tabId},func:TohyeeSignIn.pickProfile,args:[profile]}).catch(()=>[]);
+   if(shown?.result){picked++;await new Promise(r=>setTimeout(r,1500));if(!current())return {ok:false,error:'Switch cancelled'};await chrome.tabs.update(tabId,{url:url.href});loadedAt=0;continue;}
+  }
   const result=await ensurePlaying(tabId);if(result.playing)return {ok:true};
  }
  throw new Error('No playing video after 28 seconds. Check the channel link, sign in or press Play.');
