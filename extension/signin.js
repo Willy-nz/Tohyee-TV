@@ -10,7 +10,9 @@
   const SITES = [{
     site: 'https://www.skygo.co.nz', name: 'Sky Go', page: 'https://login.sky.co.nz',
     email: 'input[name="email"]', password: 'input[name="password"]', submit: 'button[type="submit"]',
-    error: '.auth0-global-message, .auth0-lock-error-msg'
+    error: '.auth0-global-message, .auth0-lock-error-msg',
+    // After signing in, Sky Go asks "Who's watching?": pick the first profile.
+    profile: {screen: 'who.?s watching', choice: '[data-testid="avatar-container"]', skip: 'add profile'}
   }];
   const forSite = site => SITES.find(s => s.site === site) ?? null;
   function forPage(url) {
@@ -53,5 +55,16 @@
     return el && el.offsetParent !== null ? el.innerText.trim().slice(0, 200) : '';
   }
 
-  root.TohyeeSignIn = {SITES, forSite, forPage, fillSignIn, signInMessage};
+  // Runs inside the website: on its "Who's watching?" screen, clicks the first
+  // profile (never "Add Profile"). Returns the profile's name, or ''.
+  function pickProfile(profile) {
+    if (!new RegExp(profile.screen, 'i').test(document.body?.innerText ?? '')) return '';
+    const skip = new RegExp(profile.skip, 'i');
+    const choice = [...document.querySelectorAll(profile.choice)].find(el => el.getBoundingClientRect().width > 0 && !skip.test(el.innerText));
+    if (!choice) return '';
+    choice.click();
+    return choice.innerText.trim().slice(0, 40) || 'the first profile';
+  }
+
+  root.TohyeeSignIn = {SITES, forSite, forPage, fillSignIn, signInMessage, pickProfile};
 })(globalThis);

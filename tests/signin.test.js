@@ -87,3 +87,22 @@ test('The extension knows Sky’s sign-in page and asks for it when arming a Sky
   assert.match(worker, /importScripts\('autostart\.js', 'signin\.js'\)/);
   assert.match(worker, /SIGN_IN_GAP_MS = 10 \* 60 \* 1000/); // never hammers the sign-in with a wrong password
 });
+
+test('The profile picker clicks the first profile on “Who’s watching?”, never “Add Profile”, and nothing elsewhere', () => {
+  const code = fs.readFileSync(new URL('../extension/signin.js', import.meta.url), 'utf8');
+  const ctx = {URL}; ctx.globalThis = ctx; vm.runInNewContext(code, ctx);
+  const {pickProfile, forSite} = ctx.TohyeeSignIn;
+  const profile = forSite('https://www.skygo.co.nz').profile;
+  const page = (text, names) => {
+    const clicked = [];
+    const els = names.map(n => ({innerText: n, getBoundingClientRect: () => ({width: 80}), click: () => clicked.push(n)}));
+    ctx.document = {body: {innerText: text}, querySelectorAll: sel => sel === profile.choice ? els : []};
+    return clicked;
+  };
+  let clicked = page('Who\u2019s watching?', ['Add Profile', 'Jackie', 'Neil']);
+  assert.equal(vm.runInContext(`(${pickProfile})(${JSON.stringify(profile)})`, ctx), 'Jackie');
+  assert.deepEqual(clicked, ['Jackie']);
+  clicked = page('Manage profiles', ['Jackie']);
+  assert.equal(vm.runInContext(`(${pickProfile})(${JSON.stringify(profile)})`, ctx), '');
+  assert.deepEqual(clicked, []);
+});

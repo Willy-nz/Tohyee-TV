@@ -1,3 +1,8 @@
+## 0.8.6 — Who’s watching?
+
+- After signing back in, Sky Go asks “Who’s watching?”. A reusable tab now picks the first profile (never “Add Profile”) and opens the channel.
+- Reload the extension after updating.
+
 ## 0.8.5 — Sign in automatically
 
 - If Sky Go signs the Tohyee TV Chrome window out, a reusable tab signs back in with the email and password saved in Settings → Sign in automatically, then opens the channel.
